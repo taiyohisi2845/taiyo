@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>基本情報技術者試験 シラバス9.2 学習ツール</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; max-width: 100%; margin: 0 auto; padding: 20px; background-color: #f4f4f9; font-size: 25px; }
+        h1, h2 { color: #333; border-bottom: 2px solid #333; padding-bottom: 5px; }
+        .tabs { margin-bottom: 20px; }
+        .tabs button { padding: 10px 20px; cursor: pointer; font-size: 25px; border: 1px solid #ccc; background: #fff; }
+        .tabs button.active { background: #333; color: #fff; }
+        .content { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        
+        /* フィルター・検索エリア */
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        input[type="text"], select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 20px; }
+        .text_size { font-size: 20px; }
+        
+        /* 単語一覧のテーブル */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        input[type="checkbox"] { width: 20px; height: 20px; transform: scale(1.5); margin: 5px; cursor: pointer; vertical-align: middle; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f8f8f8; cursor: pointer; font-size: 15px; }
+        tr:nth-child(even) { background-color: #fafafa; }
+        .category-tag { padding: 2px 6px; border-radius: 4px; font-size: 15px; color: #fff; }
+        .tech { background: #007bff; } .mana { background: #28a745; } .stra { background: #ffc107; color: #000; }
+
+        /* クイズエリア */
+        #quiz-setup, #quiz-area { text-align: center; }
+        .quiz-card { border: 2px solid #333; padding: 40px; margin: 20px 0; border-radius: 10px; min-height: 200px; position: relative; }
+        .quiz-exclude-label { position: absolute; top: 15px; right: 20px; font-size: 18px; font-weight: bold; background: #fff0f0; padding: 5px 12px; border: 1px solid #ffaaaa; border-radius: 5px; cursor: pointer; }
+        .question-text { font-size: 1.2em; font-weight: bold; margin-bottom: 20px; color: #555; margin-top: 10px; }
+        .answer-text { font-size: 1.5em; color: #d9534f; margin: 20px 0; }
+        .explanation-text { font-size: 1em; color: #666; background: #f9f9f9; padding: 10px; border-radius: 5px; }
+        .btn-group { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+        .btn { padding: 10px 20px; cursor: pointer; border: none; border-radius: 5px; font-size: 25px; }
+        .btn-primary { background: #333; color: #fff; }
+        .btn-secondary { background: #ccc; }
+    </style>
+</head>
+<body>
+
+<h1>基本情報技術者試験 シラバス9.2 新用語</h1>
+
+<div class="tabs">
+    <button id="tab-list-btn" class="active" onclick="showTab('list')">単語一覧</button>
+    <button id="tab-quiz-btn" onclick="showTab('quiz')">出題開始</button>
+</div>
+
+<!-- 単語一覧タブ -->
+<div id="tab-list" class="content">
+    <div class="controls">
+        <input type="text" id="search-input" placeholder="検索（単語・説明）" oninput="renderList()">
+        <select id="filter-category" onchange="renderList()" class="text_size">
+            <option value="all">すべてのカテゴリ</option>
+            <option value="テクノロジ">テクノロジ</option>
+            <option value="マネジメント">マネジメント</option>
+            <option value="ストラテジ">ストラテジ</option>
+        </select>
+        <span>出題対象外にチェック可能</span>
+    </div>
+    <table id="word-table">
+        <thead>
+            <tr>
+                <th onclick="sortList('exclude')">除外</th>
+                <th onclick="sortList('category')">カテゴリ</th>
+                <th onclick="sortList('word')">単語</th>
+                <th>問題・説明</th>
+            </tr>
+        </thead>
+        <tbody id="word-list-body"></tbody>
+    </table>
+</div>
+
+<!-- 出題開始タブ -->
+<div id="tab-quiz" class="content hidden">
+    <div id="quiz-setup">
+        <h2>クイズ設定</h2>
+        <div class="controls" style="justify-content: center;">
+            <label>カテゴリ絞り込み:</label>
+            <select id="quiz-category">
+                <option value="all">すべて</option>
+                <option value="テクノロジ">テクノロジ</option>
+                <option value="マネジメント">マネジメント</option>
+                <option value="ストラテジ">ストラテジ</option>
+            </select>
+        </div>
+        <p>※一覧でチェックした単語は出題されません。</p>
+        <button class="btn btn-primary" onclick="startQuiz()">クイズを開始する</button>
+    </div>
+
+    <div id="quiz-area" class="hidden">
+        <div id="quiz-progress"></div>
+        <div class="quiz-card">
+            <!-- 出題中チェックボックス -->
+            <label class="quiz-exclude-label">
+                <input type="checkbox" id="quiz-exclude-checkbox" onchange="toggleCurrentQuestionExclude(this.checked)"> 出題対象外にする
+            </label>
+            <div id="quiz-question" class="question-text"></div>
+            <div id="quiz-answer-container" class="hidden">
+                <div class="answer-text">正解：<span id="quiz-answer"></span></div>
+                <div id="quiz-explanation" class="explanation-text"></div>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-secondary" onclick="prevQuestion()">前の問題へ</button>
+            <button id="show-answer-btn" class="btn btn-primary" onclick="toggleAnswer()">答えを表示</button>
+            <button class="btn btn-secondary" onclick="nextQuestion()">次の問題へ</button>
+            <button class="btn btn-secondary" onclick="exitQuiz()">終了</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const termData = [    // --- テクノロジ系 [1] ---
+    { category: "テクノロジ", word: "ベルヌーイ分布", question: "思考の結果が成功・失敗の二値のみで表される確率分布を何というか", explanation: "1回の試行で成功・失敗など2つの結果のみを取る最もシンプルな確率分布です。", exclude: false },
+    { category: "テクノロジ", word: "二項分布", question: "独立した試行を一定回数繰り返した時の成功回数の分布を何というか", explanation: "ベルヌーイ試行を複数回行った際の成功回数を表す確率分布です。", exclude: false },
+    { category: "テクノロジ", word: "歪度", question: "データ分布の左右どちらに偏っているかを示す指標を何と言うか", explanation: "分布が左右どちらに歪んでいるかを数値で示す指標です。右に長い裾を持つ場合は正、左に長い場合は負となります。", exclude: false },
+    { category: "テクノロジ", word: "尖度", question: "データ分布の尖がり具合や平たさを示す指標を何というか", explanation: "分布の尖がり具合を表す指標です。正規分布より尖っていれば高く、平たければ低くなります。", exclude: false },
+    { category: "テクノロジ", word: "相関と因果", question: "2つの変数の関係性と原因結果の関係を区別する考え方を何と言うか", explanation: "相関があっても必ずしも因果関係があるとは限りません。データ分析ではこの違いを正しく理解することが重要です。", exclude: false },
+    { category: "テクノロジ", word: "擬似相関", question: "第3の要因により見かけ上相関があるように見える関係を何と言うか", explanation: "実際には直接関係がないのに別の要因によって相関があるように見える関係です。", exclude: false },
+    { category: "テクノロジ", word: "説明変数", question: "結果に影響を与える要因として用いられる変数を何と言うか", explanation: "モデルにおいて結果を説明するための入力側の変数です。特徴量に相当します。", exclude: false },
+    { category: "テクノロジ", word: "目的変数", question: "予測や分析の対象となる結果側の変数を何と言うか", explanation: "分析や学習で予測したい対象となる変数です。将来の値を推定します。", exclude: false },
+    { category: "テクノロジ", word: "尺度", question: "データを測定・分類するための基準の種類を総称して何というか", explanation: "データの性質に応じた分類基準のことです。統計手法の選択に影響します。", exclude: false },
+    { category: "テクノロジ", word: "名義尺度", question: "分類のみ可能で大小関係を持たない尺度を何というか", explanation: "性別や血液型など単なる分類を表す尺度です。平均との差や比率に意味はありません。", exclude: false },
+    { category: "テクノロジ", word: "順序尺度", question: "大小はあるが差の意味を持たない尺度を何と言うか", explanation: "順位や成績評価など順序は比較できるが、その大きさは数値的に扱えない尺度です。", exclude: false },
+    { category: "テクノロジ", word: "間隔尺度", question: "差は意味を持つが比率に意味がない尺度を何というか", explanation: "温度や西暦のように差は有効ですが、0が絶対的ではない尺度です。", exclude: false },
+    { category: "テクノロジ", word: "比例尺度", question: "差も比率も意味を持つ尺度を何というか", explanation: "長さや重さ、金額など0が絶対基準となる尺度です。全ての数学的演算が可能です。", exclude: false },
+    { category: "テクノロジ", word: "推定", question: "データから母集団の特性を求めることを何と言うか", explanation: "限られたデータから全体の性質を推測する手法です。意思決定において重要な役割を果たします。", exclude: false },
+    { category: "テクノロジ", word: "点推定", question: "母数を単一の値で推定する方法を何というか", explanation: "平均値など1つの値で母数を推定する方法です。不確実性の情報は含まれません。", exclude: false },
+    { category: "テクノロジ", word: "区間推定", question: "一定の範囲として母数を推定する方法を何というか", explanation: "信頼区間として範囲を示すことで推定の不確実性を表現します。", exclude: false },
+    { category: "テクノロジ", word: "尤度", question: "観測データが得られるらしさを表す量を何というか", explanation: "モデルのパラメーターがどれだけデータをよく説明しているかを示す指標です。最有推定の基礎となります。", exclude: false },
+    { category: "テクノロジ", word: "最尤推定", question: "尤度が最大となるパラメーターを求める推定法を何というか", explanation: "観測データが最も起こりやすくなるようにパラメーターを決定する方法です。", exclude: false },
+    { category: "テクノロジ", word: "仮説検定", question: "仮説が正しいかを統計的に判断する手法を何というか", explanation: "データに基づいて仮説の妥当性を検証する方法です。有意水準やP値を用いて判断します。", exclude: false },
+    { category: "テクノロジ", word: "対立仮説", question: "検定で正しいと示したい結論側の仮説を何というか", explanation: "効果や差があると主張する仮説です。帰無仮説が棄却された場合に採択されます。", exclude: false },
+    { category: "テクノロジ", word: "帰無仮説", question: "差や効果がないと仮定する仮説を何と言うか", explanation: "検定の出発点となる仮説です。これを棄却できるかどうかで結論を導きます。", exclude: false },
+    { category: "テクノロジ", word: "有意水準", question: "帰無仮説を棄却する基準となる確率を何というか", explanation: "一般に5%や1%が使われます。第1種の誤りを許容する上限として設定されます。", exclude: false },
+    { category: "テクノロジ", word: "P値", question: "帰無仮説が正しい時に観測結果が得られる確率を何というか", explanation: "観測データがどれほど珍しいかを示す指標です。有意水準より小さい場合に帰無仮説を棄却します。", exclude: false },
+    { category: "テクノロジ", word: "棄却域", question: "検定統計量が入った場合に帰無仮説を棄却する範囲を何というか", explanation: "有意水準に基づいて定められる範囲です。統計量がこの領域に入ると帰無仮説は棄却されます。", exclude: false },
+    { category: "テクノロジ", word: "第1種の誤り", question: "帰無仮説が正しいのに棄却してしまう誤りを何というか", explanation: "実際には差がないのに、あると判断する誤りです。有意水準はこの誤りの上限です。", exclude: false },
+    { category: "テクノロジ", word: "第2種の誤り", question: "帰無仮説が誤りなのに棄却できない誤りを何というか", explanation: "実際には差があるのに、ないと判断する誤りです。サンプル数が少ない場合に起こりやすいです。", exclude: false },
+    { category: "テクノロジ", word: "検出力", question: "第2種の誤りを起こさずに差を検出できる確率を何というか", explanation: "仮説検定で正しく差を見つけられる能力です。サンプル数を増やすと高まります。", exclude: false },
+    { category: "テクノロジ", word: "通信の符号化", question: "通信中の誤りを検出・訂正するための符号化方法を何というか", explanation: "ノイズによるビット誤りに備えて冗長情報を付加します。CRCやハミング符号が代表例です。", exclude: false },
+    { category: "テクノロジ", word: "情報符号化", question: "データ量を減らすために行う符号化方式を何と言うか", explanation: "余分な情報を除去して効率的に表現します。圧縮により通信や保存コストを削減できます。", exclude: false },
+    { category: "テクノロジ", word: "教師あり学習", question: "正解ラベル付きのデータで学習する機械学習手法を何というか", explanation: "入力と正解の組からモデルを学習します。分類や回帰問題で広く使われます。", exclude: false },
+    { category: "テクノロジ", word: "教師なし学習", question: "正解ラベルなしのデータから構造を見つける学習手法を何というか", explanation: "データの分布や特徴を自動的に抽出します。クラスタリングや次元削減が代表的です。", exclude: false },
+    { category: "テクノロジ", word: "強化学習", question: "行動の結果として報酬を得ながら最適行動を学ぶ手法を何というか", explanation: "環境との試行錯誤を通じて学習します。ゲームAIやロボット制御などで利用されます。", exclude: false },
+    { category: "テクノロジ", word: "線形回帰", question: "説明変数と目的変数の関係を直線でモデル化する手法を何と言うか", explanation: "最小二乗法などで係数を求め予測に利用します。理解しやすく基本的なモデルです。", exclude: false },
+    { category: "テクノロジ", word: "ロジスティック回帰", question: "確率を用いて二値分類を行う回帰モデルを何というか", explanation: "出力を0〜1の確率として表します。名前に回帰とありますが分類問題に用いられます。", exclude: false },
+    { category: "テクノロジ", word: "決定木", question: "データを条件分岐で分類予測するモデルを何と言うか", explanation: "木構造で判断過程が可視化できます。理解しやすい一方、過学習しやすい特徴があります。", exclude: false },
+    { category: "テクノロジ", word: "ランダムフォレスト", question: "複数の決定木を組み合わせた学習手法を何というか", explanation: "多数の決定木の結果を統合します。単体の決定木より性能と安定性が向上します。", exclude: false },
+    { category: "テクノロジ", word: "サポートベクトルマシン", question: "マージン最大化により分類を行う学習手法を何というか", explanation: "境界との距離を重視した分類器です。カーネルにより非線形問題にも対応できます。", exclude: false },
+    { category: "テクノロジ", word: "主成分分析", question: "データの分散を保ったまま次元を削減する手法を何というか", explanation: "主要な情報を少数の軸に集約します。可視化や前処理として用いられます。", exclude: false },
+    { category: "テクノロジ", word: "学習データ", question: "モデルの学習に用いるデータセットを何というか", explanation: "モデルのパラメーター調整に使用されます。量と質が性能に大きく影響します。", exclude: false },
+    { category: "テクノロジ", word: "検証データ", question: "モデルの妥当性を確認するためのデータを何というか", explanation: "ハイパーパラメーター調整や過学習チェックに使われ、学習データとは分けて扱います。", exclude: false },
+    { category: "テクノロジ", word: "テストデータ", question: "学習後の性能評価のために使うデータを何と言うか", explanation: "一度も学習に使わず、最終的な汎化性能を確認するために利用します。", exclude: false },
+    { category: "テクノロジ", word: "汎化性能", question: "未知データに対して正しく予測できる能力を何と言うか", explanation: "実運用では未知データへの対応力が重要です。学習データへの適合度だけでは評価できません。", exclude: false },
+    { category: "テクノロジ", word: "過学習", question: "学習データに過度に適合し汎化性能が低下する現象を何と言うか", explanation: "学習データのノイズまで覚えてしまう状態です。正則化やデータ増加で防止します。", exclude: false },
+    { category: "テクノロジ", word: "交差検証", question: "データを分割して複数回評価する検証方法を何というか", explanation: "学習と評価を入れ替えて行います。モデル性能を安定的に評価できます。", exclude: false },
+    { category: "テクノロジ", word: "ホールドアウト検証", question: "データを1度だけ分割して評価する方法を何というか", explanation: "シンプルで計算コストが低い検証方法です。ただしデータのばらつきに注意が必要です。", exclude: false },
+    { category: "テクノロジ", word: "ROC曲線", question: "真陽性率と偽陽性率の関係を表す曲線（直線）を何というか", explanation: "分類器の性能比較に使われます。AUCが大きいほど優れたモデルと判断されます。", exclude: false },
+    { category: "テクノロジ", word: "ニューラルネットワーク", question: "人間の神経回路を模した計算モデルを何と言うか", explanation: "重み付き結合と活性化関数で構成されます。深層学習の基盤技術です。", exclude: false },
+    { category: "テクノロジ", word: "多層パーセプトロン", question: "複数層からなるニューラルネットワークを何というか", explanation: "入力層、中間層、出力層を持ちます。非線形な問題を学習できます。", exclude: false },
+    { category: "テクノロジ", word: "バックプロパゲーション", question: "誤差を逆方向に伝播させて学習する方法を何というか", explanation: "出力誤差を使って重みを更新します。ニューラルネットワーク学習の基本手法です。", exclude: false },
+    { category: "テクノロジ", word: "勾配消失問題", question: "層が深くなると勾配が小さくなる問題を何と言うか", explanation: "学習が進まなくなる原因となります。活性化関数や構造の工夫で対策します。", exclude: false },
+    { category: "テクノロジ", word: "活性化関数", question: "ニューロンの出力を決定する関数を何という", explanation: "非線形性を導入する役割があります。ReLUやシグモイド関数が代表例です。", exclude: false },
+    { category: "テクノロジ", word: "事前学習", question: "大量データであらかじめ学習することを何というか", explanation: "汎用的な特徴を獲得できます。後続タスクの性能向上に寄与します。", exclude: false },
+    { category: "テクノロジ", word: "ファインチューニング", question: "事前学習済みモデルを調整することを何というか", explanation: "少量のデータで特定用途に適用させます。学習コスト削減が可能です。", exclude: false },
+    { category: "テクノロジ", word: "転移学習", question: "タスクの知識を別タスクに活用する学習を何と言うか", explanation: "学習済み知識を再利用することで、効率的に高性能モデルを構築できます。", exclude: false },
+    { category: "テクノロジ", word: "畳み込みニューラルネットワーク", question: "画像処理に強いネットワーク構造を何というか", explanation: "畳み込み層により特徴を抽出します。画像認識分野で広く利用されています。", exclude: false },
+    { category: "テクノロジ", word: "リカレントニューラルネットワーク", question: "時系列データを扱うネットワークを何というか", explanation: "過去の情報を保持でき、文章や音声処理に使われます。", exclude: false },
+    { category: "テクノロジ", word: "生成モデル", question: "新しいデータを生成できるモデルを何と言うか", explanation: "データ分布を学習し、新たなサンプルを作り出します。画像生成などで用いられます。", exclude: false },
+    { category: "テクノロジ", word: "敵対的生成ネットワーク", question: "生成器と識別器を競わせる生成モデルを何というか", explanation: "高品質な生成が可能ですが、学習が不安定な点に注意が必要です。", exclude: false },
+    { category: "テクノロジ", word: "基盤モデル", question: "多目的に使える大規模事前学習モデルを何と言うか", explanation: "様々なタスクに転用可能なモデルです。近年のAI技術の中心的存在です。", exclude: false },
+    { category: "テクノロジ", word: "拡散モデル", question: "ノイズ付加と除去で生成するモデルを何と言うか", explanation: "安定した品質生成が可能です。画像生成分野で注目されています。", exclude: false },
+    { category: "テクノロジ", word: "言語モデル", question: "単語列の確率をモデル化するモデルを何と言うか", explanation: "自然言語処理の基礎技術で、文章生成や補完に使われます。", exclude: false },
+    { category: "テクノロジ", word: "大規模言語モデル", question: "大量データで学習した言語モデルを何というか", explanation: "高度な文章生成や理解が可能です。対話AIの中核技術です。", exclude: false },
+    { category: "テクノロジ", word: "自己教師あり学習", question: "正解を自動生成して学習する手法を何というか", explanation: "ラベル付け不要で大量データを活用できます。事前学習で多用されます。", exclude: false },
+    { category: "テクノロジ", word: "プロンプトエンジニアリング", question: "入力文を工夫して出力を制御する技術を何というか", explanation: "AIから望ましい応答を得るための重要な技術です。指示設計が鍵となります。", exclude: false },
+    { category: "テクノロジ", word: "油圧シリンダ", question: "油圧を直線運動に変換する装置を何というか", explanation: "大きな力を安定して出せます。建設機械などで広く使われています。", exclude: false },
+    { category: "テクノロジ", word: "空気圧シリンダ", question: "空気圧を利用して動作するシリンダを何と言うか", explanation: "構造が簡単で高速動作が可能です。自動化設備で多用されます。", exclude: false },
+    { category: "テクノロジ", word: "B木", question: "順序を保つ多分岐構造を何というか", explanation: "データベースやファイルシステムで利用されます。探索・更新が効率的です。", exclude: false },
+    { category: "テクノロジ", word: "AVL木", question: "高さを制御する平衡二分探索木を何というか", explanation: "常に木の高さを抑えます。探索性能が安定しています。", exclude: false },
+    { category: "テクノロジ", word: "ダイクストラ法", question: "最短経路を求める代表的なアルゴリズムを何と言うか", explanation: "正の重みを持つグラフで利用されます。ネットワーク設計で重要です。", exclude: false },
+    { category: "テクノロジ", word: "ベルマンフォード法", question: "負の重みを扱える最短経路探索法を何と言うか", explanation: "負の閉路検出が可能です。計算量は大きめです。", exclude: false },
+    { category: "テクノロジ", word: "形態素解析", question: "文を最小単位に分割する処理を何というか", explanation: "日本語処理の基礎技術です。単語分割と品詞判定を行います。", exclude: false },
+    { category: "テクノロジ", word: "構文解析", question: "文法構造を解析する処理を何と言うか", explanation: "文の構造を明らかにします。翻訳や解析に重要です。", exclude: false },
+    { category: "テクノロジ", word: "意味解析", question: "文の意味内容を解析する処理を何と言うか", explanation: "単語や構造の意味を統合します。理解精度向上に不可欠です。", exclude: false },
+    { category: "テクノロジ", word: "文脈解析", question: "前後関係を考慮した解析を何というか", explanation: "曖昧な表現を正しく解釈します。会話理解で重要です。", exclude: false },
+    { category: "テクノロジ", word: "係り受け解析", question: "文中の単語同士の関係を解析する処理を何と言うか", explanation: "修飾関係を明確にします。日本語解析で多用されます。", exclude: false },
+    { category: "テクノロジ", word: "N-gram", question: "N個連続した要素を扱う手法を何というか", explanation: "言語モデルの基本です。文章の局所的特徴を捉えます。", exclude: false },
+    { category: "テクノロジ", word: "文章間類似度", question: "文と文の意味的近さを数値化する手法を何というか", explanation: "情報検索などで使われます。ベクトル表現技術が基盤です。", exclude: false },
+    { category: "テクノロジ", word: "フロントエンドフレームワーク", question: "Web画面開発を支援する枠組を何というか", explanation: "UI構築を効率化します。再利用性と保守性が向上します。", exclude: false },
+    { category: "テクノロジ", word: "パッケージ図", question: "クラスなどの構成要素をまとめて表す図を何というか", explanation: "システム構造を俯瞰できます。UMLの一種です。", exclude: false },
+    { category: "テクノロジ", word: "コンポジット構造図", question: "オブジェクトの内部構造を示す図を何というか", explanation: "部品の関係を明確にします。UMLで使用されます。", exclude: false },
+    { category: "テクノロジ", word: "ステートマシン図", question: "状態遷移を表現する図を何というか", explanation: "振る舞いを時系列で示します。制御系設計で有用です。", exclude: false },
+    { category: "テクノロジ", word: "コミュニケーション図", question: "オブジェクトのやり取りを示す図を何というか", explanation: "相互作用を番号順で表します。UMLの相互作用図です。", exclude: false },
+    { category: "テクノロジ", word: "相互作用概観図", question: "複数の相互作用をまとめて示す図を何というか", explanation: "処理全体の流れを俯瞰できます。UMLで用いられます。", exclude: false },
+    { category: "テクノロジ", word: "タイミング図", question: "時間軸上の状態変化を示す図を何というか", explanation: "リアルタイム性の確認に役立ちます。UMLの一種です。", exclude: false },
+    { category: "テクノロジ", word: "JSON", question: "軽量なデータ交換フォーマットを何というか", explanation: "JavaScriptのオブジェクト形式をベースとした、人にも機械にも読みやすい形式です。", exclude: false },
+    { category: "テクノロジ", word: "シングルボードコンピュータ", question: "CPUやメモリなど主要部品を1枚の基盤にまとめた計算機を何というか", explanation: "小型で組み込み機器やIoTで多く利用されます。Raspberry Piが代表例です。", exclude: false },
+    { category: "テクノロジ", word: "DIMM", question: "デスクトップ向けに使われるメモリモジュールの規格を何という", explanation: "主にデスクトップPCやサーバーで利用される高速なメモリモジュール規格です。", exclude: false },
+    { category: "テクノロジ", word: "SO-DIMM", question: "PCなどで使われる小型メモリモジュールの規格を何というか", explanation: "DIMMを小型化した規格で、ノートPCや小型機器で広く利用されています。", exclude: false },
+    { category: "テクノロジ", word: "ウェアレベリング", question: "フラッシュメモリの書き込み回数を均一化する制御技術を何というか", explanation: "特定ブロックへの偏った書き込みを防ぎ、SSDなどの寿命を延ばす仕組みです。", exclude: false },
+    { category: "テクノロジ", word: "Thunderbolt", question: "高速なデータ転送と映像出力を統合した接続規格を何というか", explanation: "通信・給電・映像出力を1本で行えます。USB Type-Cと互換性を持つ世代もあります。", exclude: false },
+    { category: "テクノロジ", word: "ヘッドマウントディスプレイ", question: "頭部に装着して映像を表示する表示装置を何というか", explanation: "視界全体に映像を表示し、VRやAR分野で高い没入感を提供します。", exclude: false },
+    { category: "テクノロジ", word: "アイトラッキングデバイス", question: "視線の動きを計測・取得する装置を何というか", explanation: "視線位置を検出し、UI改善やVR、心理実験などに活用されます。", exclude: false },
+    { category: "テクノロジ", word: "ハプティックデバイス", question: "振動や力などの触覚を伝える装置を何というか", explanation: "触覚フィードバックを提供し、ゲームやVRで臨場感を高めます。", exclude: false },
+    { category: "テクノロジ", word: "IaC", question: "インフラ構成をコードで管理・自動化する手法を何というか", explanation: "サーバーやネットワークをコードで定義し、設定ミス削減や再現性向上を図ります。", exclude: false },
+    { category: "テクノロジ", word: "サーバーレス", question: "サーバー管理を意識せずにアプリを実行する方式を何というか", explanation: "インフラ管理はクラウド事業者が担い、利用量課金で運用コストを抑えられます。", exclude: false },
+    { category: "テクノロジ", word: "RAID 10", question: "ミラーリングとストライピングを組み合わせたRAID方式を何というか", explanation: "高速性と耐障害性を両立する信頼性の高い方式です。ディスク消費量は多いです。", exclude: false },
+    { category: "テクノロジ", word: "フォルトマスキング", question: "障害を外部から見えないようにする技術を何と言うか", explanation: "冗長化などにより障害を隠蔽します。高可用性システムで重要な考え方です。", exclude: false },
+    { category: "テクノロジ", word: "モバイル端末用OS", question: "スマートフォンやタブレット向けのOSを何というか", explanation: "タッチ操作や省電力に最適化されています。AndroidやiOSが代表例です。", exclude: false },
+    { category: "テクノロジ", word: "セキュアOS", question: "高い安全性を重視して設計されたOSを何というか", explanation: "不正アクセスや改ざん防止を目的とし、認証やアクセス制御が強化されています。", exclude: false },
+    { category: "テクノロジ", word: "クラウドコンピューティング用OS", question: "仮想化や分散処理に適したOSを何というか", explanation: "多数の仮想マシン管理を前提とし、スケーラビリティと可用性が重視されます。", exclude: false },
+    { category: "テクノロジ", word: "OSGi", question: "Java向けの動的モジュールシステムを何というか", explanation: "モジュール単位での追加・更新が可能で、長時間稼働システムに向いています。", exclude: false },
+    { category: "テクノロジ", word: "ローコードツール", question: "少ないコード記述で開発できるツールを何というか", explanation: "GUI操作を中心に開発し、開発効率を高めます。", exclude: false },
+    { category: "テクノロジ", word: "ノーコードツール", question: "コードを書かずに開発できるツールを何というか", explanation: "完全に視覚的操作でアプリを作成します。迅速な試作や業務改善に適しています。", exclude: false },
+    { category: "テクノロジ", word: "インタラクションの原則", question: "利用者とシステムが直感的にやり取りできるように設定する考え方を何というか", explanation: "理解しやすさや操作のしやすさを重視する設計原則です。", exclude: false },
+    { category: "テクノロジ", word: "NUI", question: "人の自然な動作や感覚を使って操作するユーザーインターフェースを何というか", explanation: "タッチ、音声、ジェスチャーなど自然な操作を取り入れたインターフェースです。", exclude: false },
+    { category: "テクノロジ", word: "ジェスチャーインターフェース", question: "手や身体の動作を入力として認識するインターフェースを何というか", explanation: "身体の動きを直接入力として扱います。VRや非接触操作に活用されます。", exclude: false },
+    { category: "テクノロジ", word: "マルチタッチインターフェース", question: "同時に複数の指入力を認識できる操作方式を何というか", explanation: "複数指による操作を同時に処理します。スマホやタブレットで標準的です。", exclude: false },
+    { category: "テクノロジ", word: "タップ", question: "画面を軽く1度だけ触れて操作する動作を何と言うか", explanation: "クリックに相当する基本操作で、選択や実行に使われます。", exclude: false },
+    { category: "テクノロジ", word: "スワイプ", question: "指を画面上で滑らせる操作を何と言うか", explanation: "画面切り替えやスクロールに使用されます。方向によって意味が変わります。", exclude: false },
+    { category: "テクノロジ", word: "フリック", question: "弾くように素早く指を動かす操作を何と言うか", explanation: "日本語入力などで多用される、短時間の素早い動きが特徴の操作です。", exclude: false },
+    { category: "テクノロジ", word: "ピンチ", question: "2本指を広げたり閉じたりする操作を何と言うか", explanation: "拡大（ピンチアウト）・縮小（ピンチイン）操作に使われる直感的な操作です。", exclude: false },
+    { category: "テクノロジ", word: "ロングプレス", question: "一定時間押し続ける操作を何と言うか", explanation: "詳細メニューや追加操作の呼び出しに用いられます（長押し）。", exclude: false },
+    { category: "テクノロジ", word: "トグルボタン", question: "オンとオフを切り替えるUI部品を何と言うか", explanation: "同じ操作で2つの状態を交互に切り替える部品です。設定の有効/無効の可視化に適します。", exclude: false },
+    { category: "テクノロジ", word: "アコーディオン", question: "内容を折り畳み式に表示するUI部品を何と言うか", explanation: "情報量の多い画面を整理し、必要な時だけ展開して表示する小スペース設計に有効な部品です。", exclude: false },
+    { category: "テクノロジ", word: "ホバー（ロールオーバー）", question: "ポインタを重ねた際に反応する操作を何というか", explanation: "マウス操作特有の表現で、操作可能であることを示すなどの役割があります。", exclude: false },
+    { category: "テクノロジ", word: "ツールチップ", question: "操作補助の説明文を一時的に表示するUIを何というか", explanation: "画面を複雑にせず説明を補足でき、初心者支援に有効です。", exclude: false },
+    { category: "テクノロジ", word: "UXデザインの5段階モデル", question: "UX設定を戦略・要件・構造・骨格・表層の順で体系化したモデルを何というか", explanation: "設計の全体像を整理するためのフレームワークです。", exclude: false },
+    { category: "テクノロジ", word: "デザインの原則", question: "視覚的に整理するための基本原則を何と言うか", explanation: "近接、整列、反復、対比などが代表例で、情報の理解を助けます。", exclude: false },
+    { category: "テクノロジ", word: "インフォグラフィック", question: "情報やデータを視覚的に分かりやすく表現する手法を何というか", explanation: "数値や関係性を図やイラストで表し、直感的な理解を促します。", exclude: false },
+    { category: "テクノロジ", word: "タイポグラフィ", question: "文字の書体や配置を設計する技術を何と言うか", explanation: "可読性や印象を左右し、情報伝達の質を高めるために重要です。", exclude: false },
+    { category: "テクノロジ", word: "ムードボード", question: "デザインの方向性や雰囲気を視覚的にまとめた資料を何と言うか", explanation: "色や写真、素材を集めて世界観を共有する、デザイン初期の検討資料です。", exclude: false },
+    { category: "テクノロジ", word: "レスポンシブウェブデザイン", question: "画面サイズに応じて表示を切り替える設計手法を何というか", explanation: "PCやスマホなど多様な端末に1つのURLで対応できる設計です。", exclude: false },
+    { category: "テクノロジ", word: "UXライティング", question: "利用者体験を意識して文章を設計する手法を何というか", explanation: "ボタンの文言やメッセージに配慮し、迷いを減らして操作性を向上させます。", exclude: false },
+    { category: "テクノロジ", word: "ワイヤーフレーム", question: "画面構成や要素配置を簡略的に示した設計図を何と言うか", explanation: "UIの骨組みを表し、デザイン制作前の合意形成に有効です。", exclude: false },
+    { category: "テクノロジ", word: "メディアクエリー", question: "画面条件に応じてCSSを切り替える仕組みを何というか", explanation: "端末サイズ別に表示を最適化するための、レスポンシブ対応の核となる技術です。", exclude: false },
+    { category: "テクノロジ", word: "カルーセル", question: "横方向に切り替えて表示するUI部品を何というか", explanation: "複数のコンテンツを省スペースでスライド表示できます。", exclude: false },
+    { category: "テクノロジ", word: "ピクトグラム", question: "意味を簡潔な図形で表した記号を何というか", explanation: "言語に依存せず情報を伝達でき、公共施設などで多用されます。", exclude: false },
+    { category: "テクノロジ", word: "ユニバーサルデザインフォント", question: "誰にとっても読みやすさを考慮したフォントを何というか", explanation: "高齢者や弱視の方にも配慮された、誤読防止に役立つフォントです。", exclude: false },
+    { category: "テクノロジ", word: "ラスターデータ", question: "画素の集合として画像をあらわすデータ形式を何というか", explanation: "写真などに向いていますが、拡大すると画質が劣化します（ビットマップ）。", exclude: false },
+    { category: "テクノロジ", word: "ベクターデータ", question: "数式で図形を表現する画像データ形式を何と言うか", explanation: "拡大・縮小しても劣化しないため、ロゴや図形に適しています。", exclude: false },
+    { category: "テクノロジ", word: "光の三原色", question: "加法混色で使われる基本の3色を何というか", explanation: "ディスプレイ表示で使用され、重ねるほど明るくなります（RGB）。", exclude: false },
+    { category: "テクノロジ", word: "レッド・グリーン・ブルー", question: "光の三原色の3つの色を全て答えよ", explanation: "人間の目はこれら3色を認識して色を判断しています。", exclude: false },
+    { category: "テクノロジ", word: "色の三原色", question: "減法混色で使われる基本の3色を何というか", explanation: "印刷やインクで使用され、混ぜるほど暗くなります（CMY）。", exclude: false },
+    { category: "テクノロジ", word: "シアン・マゼンタ・イエロー", question: "色の三原色の3つの色を全て答えよ", explanation: "印刷ではこれらに黒（K）を加えて表現するのが一般的です。", exclude: false },
+    { category: "テクノロジ", word: "加法混色", question: "光を重ねることで色を表現する方式を何というか", explanation: "RGB方式で、ディスプレイなどの発光体で採用されています。", exclude: false },
+    { category: "テクノロジ", word: "減法混色", question: "光を吸収して色を表現する方式を何というか", explanation: "CMY方式で、印刷技術の基本となります。", exclude: false },
+    { category: "テクノロジ", word: "コントラスト", question: "明暗や色の差による視認性の度合いを何というか", explanation: "適切に設定すると可読性が向上します。UI設計において重要です。", exclude: false },
+    { category: "テクノロジ", word: "DPI", question: "印刷物の解像度を示す単位を何というか", explanation: "1インチあたりのドット数を表し、印刷品質に影響します。", exclude: false },
+    { category: "テクノロジ", word: "PPI", question: "ディスプレイの画素密度を示す単位を何と言うか", explanation: "1インチあたりのピクセル数です。数値が高いほど精細になります。", exclude: false },
+    { category: "テクノロジ", word: "レイヤー", question: "重ねて編集できる画像の層構造を何というか", explanation: "各要素を独立して編集できる、画像制作の基本概念です。", exclude: false },
+    { category: "テクノロジ", word: "トリミング", question: "画像の不要部分を切り取る処理を何と言うか", explanation: "構図の調整やデータ容量の削減に使われます。", exclude: false },
+    { category: "テクノロジ", word: "ミックスドリアリティ（MR）", question: "現実と仮想を融合した技術を何と言うか", explanation: "現実空間に仮想情報を重ねて表示し、相互に影響し合う技術です。", exclude: false },
+    { category: "テクノロジ", word: "メタバース", question: "仮想空間で活動する社会的概念を何というか", explanation: "アバターを用いた交流が特徴の、オンライン上の仮想空間です。", exclude: false },
+    { category: "テクノロジ", word: "ホログラム", question: "立体的な像を再現する映像技術を何というか", explanation: "光の干渉を利用した立体表示技術です。", exclude: false },
+    { category: "テクノロジ", word: "分散データベース", question: "複数拠点でデータを分散管理するデータベースを何というか", explanation: "可用性と耐障害性を高めます。クラウド環境で重要です。", exclude: false },
+    { category: "テクノロジ", word: "ドキュメント指向データベース", question: "JSON形式などでデータを管理するNoSQLデータベースを何というか", explanation: "データ構造が柔軟でスキーマ変更に強いです。Webアプリなどで多用されます。", exclude: false },
+    { category: "テクノロジ", word: "列指向データベース", question: "行単位ではなく列単位でデータを管理する方式のデータベースを何というか", explanation: "集計や分析処理に強く、データウェアハウス（DWH）などに向いています。", exclude: false },
+    { category: "テクノロジ", word: "グラフデータベース", question: "データの関係性を重視して管理するデータベースを何というか", explanation: "ノードとエッジで構成されます。SNSや推薦エンジンで活用されます。", exclude: false },
+    { category: "テクノロジ", word: "キーバリュー型データベース", question: "キーと値の組でデータを管理するデータベースを何というか", explanation: "高速な検索が可能です。キャッシュやセッション管理で使われます。", exclude: false },
+    { category: "テクノロジ", word: "インメモリデータベース", question: "主記憶上でデータ処理を行うデータベースを何というか", explanation: "ディスクアクセスを排し高速処理が可能です。", exclude: false },
+    { category: "テクノロジ", word: "グラフ型のデータモデル", question: "エンティティと関係性をノードとエッジで表すモデルを何というか", explanation: "複雑な関係性を自然に表現できます。", exclude: false },
+    { category: "テクノロジ", word: "プロパティグラフ", question: "ノードやエッジに属性を持たせたグラフ構造を何というか", explanation: "実用的なグラフデータベースで広く採用されています。", exclude: false },
+    { category: "テクノロジ", word: "トリプルストア", question: "RDF形式で主語・述語・目的語を管理するデータベースを何と言うか", explanation: "セマンティックウェブなどで利用されます。", exclude: false },
+    { category: "テクノロジ", word: "GRANT文", question: "データベースで利用者に権限を付与するSQL文を何と言うか", explanation: "表や操作の権限を管理する、アクセス制御の基本となる命令です。", exclude: false },
+    { category: "テクノロジ", word: "フォワードリカバリ", question: "障害復旧時にログを用いて処理を再適用する方式を何という", explanation: "コミット済みトランザクションを再実行（ロールフォワード）します。", exclude: false },
+    { category: "テクノロジ", word: "バックワードリカバリ", question: "障害発生時に処理を元に戻す回復方式を何というか", explanation: "ロールバック処理によってデータベースの整合性を保ちます。", exclude: false },
+    { category: "テクノロジ", word: "インデックス", question: "データベース性能に影響する索引の個数を何と言うか", explanation: "検索は高速化しますが、更新性能の低下に注意が必要です。", exclude: false },
+    { category: "テクノロジ", word: "負荷", question: "システムにかかる処理や利用状況を何と言うか", explanation: "高負荷状態は性能劣化や障害を引き起こすため管理が重要です。", exclude: false },
+    { category: "テクノロジ", word: "ユニークインデックス", question: "重複値を許さない索引を何というか", explanation: "データの一意性を保証します。", exclude: false },
+    { category: "テクノロジ", word: "クラスタ化インデックス", question: "データの物理順序を決定する索引を何というか", explanation: "表の実際の並び順を制御し、範囲検索を高速化します。", exclude: false },
+    { category: "テクノロジ", word: "Bツリーインデックス", question: "階層構造を用いた代表的な索引方式を何と言うか", explanation: "検索や更新を効率化する、最も一般的な索引方式です。", exclude: false },
+    { category: "テクノロジ", word: "ビットマップインデックス", question: "ビット列で検索を管理する索引方式を何と言うか", explanation: "値の種類が少ない列（性別など）に対して有効です。", exclude: false },
+    { category: "テクノロジ", word: "ハッシュインデックス", question: "ハッシュ関数を使って検索する索引方式を何というか", explanation: "完全一致検索に向いています。", exclude: false },
+    { category: "テクノロジ", word: "カバリングインデックス", question: "インデックスのみで検索が完結する索引を何というか", explanation: "テーブル本体へのアクセスを省略できるため高速です。", exclude: false },
+    { category: "テクノロジ", word: "転置インデックス", question: "単語から文章を検索できる索引方式を何というか", explanation: "全文検索エンジンなどで利用される、単語と掲載位置を対応させた索引です。", exclude: false },
+    { category: "テクノロジ", word: "ELT", question: "抽出後にロードし変換するデータ処理方式を何というか", explanation: "Extract（抽出）、Load（格納）、Transform（変換）の順で行う、クラウドDWH向けの方式です。", exclude: false },
+    { category: "テクノロジ", word: "排他制御", question: "トランザクションを一貫させる制御方式を何というか", explanation: "データの同時更新による不整合を防ぎ、全体の整合性を保証します。", exclude: false },
+    { category: "テクノロジ", word: "分散ファイルシステム", question: "複数ノードでファイルを管理する仕組みを何というか", explanation: "可用性と拡張性に優れています。", exclude: false },
+    { category: "テクノロジ", word: "データレイク", question: "生データをそのまま蓄積する基盤を何と言うか", explanation: "加工前の多様な形式のデータをそのまま保持し、後からの分析に備えます。", exclude: false },
+    { category: "テクノロジ", word: "HTTP/2", question: "同時通信性能を改善したHTTP規格を何というか", explanation: "Web通信の高速化に貢献する、バイナリベースのプロトコルです。", exclude: false },
+    { category: "テクノロジ", word: "HTTP/3", question: "QUIC上で動作し通信遅延を改善したHTTP規格を何というか", explanation: "UDPベースのQUICを使用し、再送遅延の低減により通信品質が向上します。", exclude: false },
+    { category: "テクノロジ", word: "10GBASE-T", question: "10Gbps通信が可能な優先LAN規格を何というか", explanation: "ツイストペアケーブルを使用する高速LAN規格です。", exclude: false },
+    { category: "テクノロジ", word: "IEEE 802.11", question: "無線の国際標準規格群を何と言うか", explanation: "Wi-Fiの基礎となる規格です。世代ごとに高速化しています。", exclude: false },
+    { category: "テクノロジ", word: "Wi-Fi 6（など）", question: "IEEE 802.11規格を世代名で表した名称を何というか", explanation: "規格を分かりやすくするために導入された呼称です。", exclude: false },
+    { category: "テクノロジ", word: "死活監視", question: "システムやサービスの稼働状況を確認する仕組みを何と言うか", explanation: "障害の早期検知を行う、運用管理の基本です。", exclude: false },
+    { category: "テクノロジ", word: "ipコマンド", question: "Linuxでネットワーク設定を確認するコマンドは何というか", explanation: "IPアドレスや経路情報の確認・設定に使用します。", exclude: false },
+    { category: "テクノロジ", word: "ssコマンド", question: "通信ソケットの状態を確認するLinuxコマンドを何というか", explanation: "netstatよりも高速にソケット情報を取得・表示できます。", exclude: false },
+    { category: "テクノロジ", word: "digコマンド", question: "DNS情報を取得する調査用コマンドを何というか", explanation: "ドメインの名前解決に関するトラブル調査に使われます。", exclude: false },
+    { category: "テクノロジ", word: "traceroute", question: "通信経路を確認するコマンドを何というか", explanation: "パケットが宛先に届くまでの経路上の遅延や障害を確認します。", exclude: false },
+    { category: "テクノロジ", word: "ローカル5G", question: "限定エリアで構築される5G通信を何というか", explanation: "工場や企業内ネットワーク向けに、独自の周波数を割り当てて構築します。", exclude: false },
+    { category: "テクノロジ", word: "eSIM", question: "端末に内蔵されるSIM方式を何というか", explanation: "物理的なカード交換が不要で、遠隔で設定を書き換えられる組み込み型SIMです。", exclude: false },
+    { category: "テクノロジ", word: "セキュリティバイデザイン", question: "設計から安全性を組み込む考え方を何というか", explanation: "初期設計段階から脅威を考慮することで、後付けよりも効果的な対策を実現します。", exclude: false },
+    { category: "テクノロジ", word: "アクセスの誤設定", question: "設定ミスによって生じるセキュリティ問題を何と言うか", explanation: "クラウド事故の典型例です。最小権限の原則が重要です。", exclude: false },
+    { category: "テクノロジ", word: "AIに対する脅威", question: "AIの学習や推論を妨害・悪用する脅威を何と言うか", explanation: "学習データ汚染や、誤認識を誘発する入力操作などが含まれます。", exclude: false },
+    { category: "テクノロジ", word: "ボット", question: "自動処理を行うプログラムを何というか", explanation: "正常な用途のほか、攻撃などの悪用にも使われます。", exclude: false },
+    { category: "テクノロジ", word: "ボットネット", question: "多数のボットを一斉制御する仕組みを何というか", explanation: "DDoS攻撃などに利用される、遠隔操作可能なコンピュータ群です。", exclude: false },
+    { category: "テクノロジ", word: "RAT", question: "遠隔操作可能なマルウェアを何というか", explanation: "情報の窃取や不正操作に使われる、遠隔操作ツール型のマルウェアです。", exclude: false },
+    { category: "テクノロジ", word: "C&Cサーバー", question: "感染端末へ指示を送る中枢サーバーを何と言うか", explanation: "コマンド＆コントロールサーバー。ボットネット等への指令塔です。", exclude: false },
+    { category: "テクノロジ", word: "ファイルレスマルウェア", question: "ファイルを残さずに動作するマルウェアを何というか", explanation: "メモリ上のみで実行されるため、従来のファイルスキャンでは検知困難です。", exclude: false },
+    { category: "テクノロジ", word: "統制の不備", question: "組織の管理不足によるセキュリティ問題を何と言うか", explanation: "不正や事故の原因となります。", exclude: false },
+    { category: "テクノロジ", word: "割れ窓理論", question: "小さな問題の放置が重大問題を招くという理論を何と言うか", explanation: "セキュリティ管理においても、些細な違反の放置が深刻な事態に繋がります。", exclude: false },
+    { category: "テクノロジ", word: "防犯環境設計", question: "環境整備で犯罪を防ぐ考え方を何というか", explanation: "見通しの良さや管理性を重視した物理的・環境的対策です。", exclude: false },
+    { category: "テクノロジ", word: "二重脅迫（ダブルエクストーション）", question: "データの窃取と公開の脅迫を併用する攻撃を何というか", explanation: "ランサムウェア攻撃の高度化形態で、身代金支払いをより強く迫ります。", exclude: false },
+    { category: "テクノロジ", word: "リバースブルートフォース攻撃", question: "少数のパスワードで多数のIDを試す攻撃を何というか", explanation: "特定IDのロック回避を狙う手法です。", exclude: false },
+    { category: "テクノロジ", word: "パスワードリスト攻撃", question: "他サイトで漏洩した認証情報を流用する攻撃を何と言うか", explanation: "パスワードの使い回しを突く攻撃です。", exclude: false },
+    { category: "テクノロジ", word: "OSコマンドインジェクション", question: "入力値を通じてOSコマンドを不正実行させる攻撃を何というか", explanation: "入力チェック不足が原因で、任意のコマンドが実行される重大な脆弱性です。", exclude: false },
+    { category: "テクノロジ", word: "第三者中継", question: "サーバーが不正にメールの中継利用をされる状態を何と言うか", explanation: "スパムメール送信の踏み台にされます。SMTP認証などの設定が重要です。", exclude: false },
+    { category: "テクノロジ", word: "フィッシング", question: "偽装サイトなどで情報を盗み取る攻撃を何というか", explanation: "SMSを用いたものはスミッシングと呼ばれます。", exclude: false },
+    { category: "テクノロジ", word: "SEOポイズニング", question: "検索結果を悪用して不正サイトへ誘導する攻撃を何というか", explanation: "検索上位に不正サイトを表示させ、正規サイトを装います。", exclude: false },
+    { category: "テクノロジ", word: "サービスおよびソフトウェアの機能の悪用", question: "正常な機能を不正な目的に利用する攻撃を何というか", explanation: "オープンリゾルバの悪用などが代表例です。", exclude: false },
+    { category: "テクノロジ", word: "ディープフェイク", question: "AIで本物のような偽映像・音声を生成する技術を何というか", explanation: "詐欺や誤情報の拡散に悪用される恐れがあります。", exclude: false },
+    { category: "テクノロジ", word: "敵対的サンプル", question: "AIを誤認識させるように加工された入力データを何というか", explanation: "人には分からない微細な改変でAIの誤判断を誘発します。", exclude: false },
+    { category: "テクノロジ", word: "プロンプトインジェクション", question: "AIへの指示文を改変して意図しない動作をさせる攻撃を何というか", explanation: "生成AI特有の攻撃手法です。", exclude: false },
+    { category: "テクノロジ", word: "ハッシュ関数", question: "任意の長さのデータを固定長のデータに変換する関数を何と言うか", explanation: "改ざん検知やパスワード管理に用いられ、不可逆なのが特徴です。", exclude: false },
+    { category: "テクノロジ", word: "メッセージダイジェスト", question: "ハッシュ関数により生成される要約値を何というか", explanation: "データの完全性（改ざんされていないこと）の確認に使用されます。", exclude: false },
+    { category: "テクノロジ", word: "パスワードレス認証", question: "パスワードを用いない認証方式を何というか", explanation: "生体認証や公開鍵方式を用い、利便性と安全性を両立します。", exclude: false },
+    { category: "テクノロジ", word: "3Dセキュア", question: "クレジット決済の本人認証方式を何というか", explanation: "カード番号以外の追加認証を行い、不正利用を防止します。", exclude: false },
+    { category: "テクノロジ", word: "本人拒否率（FRR）", question: "生体認証で、正規の利用者を誤って拒否する割合を何というか", explanation: "この値が低いほど、スムーズに利用できます。", exclude: false },
+    { category: "テクノロジ", word: "他人受入率（FAR）", question: "生体認証で、他人を誤って許可してしまう割合を何というか", explanation: "この値が低いほど、安全性が高いと言えます。", exclude: false },
+    { category: "テクノロジ", word: "トラストアンカー（ルート証明書）", question: "信頼の起点となる、自己署名された証明書を何というか", explanation: "PKI（公開鍵基盤）における信頼の源泉です。", exclude: false },
+    { category: "テクノロジ", word: "中間CA証明書", question: "ルート証明書とサーバー証明書の間をつなぐ証明書を何というか", explanation: "信頼の連鎖を形成するために使用されます。", exclude: false },
+    { category: "テクノロジ", word: "責任共有モデル", question: "クラウドにおける提供者と利用者の責任分担の考え方を何と言うか", explanation: "利用者側での設定や管理責任も重要であることを示します。", exclude: false },
+    { category: "テクノロジ", word: "リスク", question: "組織活動に影響を及ぼす不確実な要因を何と言うか", explanation: "識別・評価し、適切な対策を講じる必要があります。", exclude: false },
+    { category: "テクノロジ", word: "オペレーショナルリスク", question: "業務や人事領域におけるリスクを何と言うか", explanation: "内部不正や手続きミス、システム障害などが含まれます。", exclude: false },
+    { category: "テクノロジ", word: "サプライチェーンリスク", question: "取引先や委託先由来のリスクを何というか", explanation: "委託先のセキュリティ不備による被害などが該当し、管理が重要です。", exclude: false },
+    { category: "テクノロジ", word: "外部サービス利用のリスク", question: "SaaS利用に伴う、提供側の障害や情報漏洩のリスクを何というか", explanation: "自社で制御できない範囲に注意が必要です。", exclude: false },
+    { category: "テクノロジ", word: "SNSによる情報発信のリスク", question: "SNS利用に伴う、情報漏洩や炎上のリスクを何というか", explanation: "不適切な投稿による信頼失墜や機密漏洩が問題となります。", exclude: false },
+    { category: "テクノロジ", word: "地政学的リスク", question: "国際情勢の変化がシステムや事業に与える影響を何というか", explanation: "国家間の対立等によるサービス停止要因となります。", exclude: false },
+    { category: "テクノロジ", word: "管理策タイプ", question: "セキュリティ対策を目的別に分類したものを何というか", explanation: "予防、検知、修正などに分類されます。", exclude: false },
+    { category: "テクノロジ", word: "サイバーセキュリティコンセプト", question: "セキュリティ活動の基本となる5つの枠組みを何というか", explanation: "識別、防御、検知、対応、復旧の5要素です。", exclude: false },
+    { category: "テクノロジ", word: "エシカルハッカー", question: "防御目的でシステムに侵入・検証を行う専門家を何と言うか", explanation: "攻撃者の視点で脆弱性を発見し、組織の防御力向上に貢献します。", exclude: false },
+    { category: "テクノロジ", word: "ISMAP", question: "政府機関が利用するクラウドサービスを評価・認定する制度は何というか", explanation: "政府の情報システムにおけるセキュリティ評価制度です。", exclude: false },
+    { category: "テクノロジ", word: "SECURITY ACTION", question: "中小企業のセキュリティ対策を自己宣言する制度は何というか", explanation: "中小企業のセキュリティ意識向上を目的としています。", exclude: false },
+    { category: "テクノロジ", word: "ISAC", question: "特定の業界などでセキュリティ情報を共有する組織を何というか", explanation: "業界横断的な情報共有により、被害の拡大防止や対策強化を図ります。", exclude: false },
+    { category: "テクノロジ", word: "ソフトウェア製品等の脆弱性関連情報に関する取り扱い規定", question: "脆弱性情報の届出や公表に関するルールを何というか", explanation: "適切な公開手順を定めることで、悪用を防ぎつつ対策を促します。", exclude: false },
+    { category: "テクノロジ", word: "サイバーセキュリティフレームワーク", question: "米国標準技術局(NIST)が策定したセキュリティ対策の枠組みを何というか", explanation: "リスク管理を強化するためのガイドラインです。", exclude: false },
+    { category: "テクノロジ", word: "NDA（非開示契約）", question: "情報の機密保持に関する契約を何というか", explanation: "秘密保持契約とも呼ばれ、漏洩防止のために締結します。", exclude: false },
+    { category: "テクノロジ", word: "ランサムウェア対策", question: "身代金要求型のマルウェアへの対策を何というか", explanation: "バックアップの確保やセキュリティソフトの導入などが重要です。", exclude: false },
+    { category: "テクノロジ", word: "データのバックアップ", question: "障害時に備えてデータを複製保存することを何というか", explanation: "復旧対策の基本であり、整合性の確保が重要です。", exclude: false },
+    { category: "テクノロジ", word: "3-2-1ルール", question: "バックアップの基本原則（3世代・2媒体・1拠点）を何というか", explanation: "3つのコピー、2種類のメディア、1つのオフサイト（遠隔地）保管を推奨する原則です。", exclude: false },
+    { category: "テクノロジ", word: "WORM（ワーム）", question: "一度だけ書き込め、読み出しのみ可能な機能を何と言うか", explanation: "改ざん防止に有効な記憶特性です。", exclude: false },
+    { category: "テクノロジ", word: "イミュータブルバックアップ", question: "改変や削除が不可能なバックアップ形式を何というか", explanation: "ランサムウェアによるバックアップデータの破壊を防ぐのに効果的です。", exclude: false },
+    { category: "テクノロジ", word: "マルウェア検出手法", question: "不正なプログラムを検出し除去する方法を何というか", explanation: "パターンマッチングや振る舞い検知などがあります。", exclude: false },
+    { category: "テクノロジ", word: "パターンマッチング法", question: "既知のウイルスの特徴(シグネチャ)と照合する方式を何というか", explanation: "既知のマルウェアには強いですが、未知の攻撃には弱いです。", exclude: false },
+    { category: "テクノロジ", word: "ビヘイビア法", question: "不審な動作（挙動）に基づいて検出する方式を何というか", explanation: "未知のマルウェアにも対応できる可能性があります。", exclude: false },
+    { category: "テクノロジ", word: "ヒューリスティック法", question: "経験則に基づいてウイルスらしい特徴から検出する方式を何というか", explanation: "パターン化されていない未知の攻撃の検知に適しますが、誤検知に注意が必要です。", exclude: false },
+    { category: "テクノロジ", word: "動的マルウェア検出手法", question: "サンドボックス等で動作を分析する未知マルウェアの検出手法を何というか", explanation: "実際に動作させて振る舞いを分析します。", exclude: false },
+    { category: "テクノロジ", word: "SBOM", question: "ソフトウェアに含まれる部品やライブラリの一覧表を何というか", explanation: "構成部品を把握することで、脆弱性管理やサプライチェーン対策に役立てます。", exclude: false },
+    { category: "テクノロジ", word: "データマスキング", question: "特定のデータを伏字などにして隠す処理を何というか", explanation: "本番データを使用する際の漏洩防止策として用いられます。", exclude: false },
+    { category: "テクノロジ", word: "AI for Security", question: "AIを活用して防御を強化する技術を何というか", explanation: "高度な脅威検知や自動対応を可能にします。", exclude: false },
+    { category: "テクノロジ", word: "Security for AI", question: "AI自体を攻撃（データの汚染など）から守る技術を何というか", explanation: "AI固有の脆弱性や脅威に対応するセキュリティです。", exclude: false },
+    { category: "テクノロジ", word: "記憶媒体の管理対策", question: "USBメモリなどの記憶媒体の紛失や盗難を防ぐ対策を何というか", explanation: "物理的な管理や暗号化が重要です。", exclude: false },
+    { category: "テクノロジ", word: "スパム対策", question: "不要な広告メールや迷惑メールを防ぐ対策を何というか", explanation: "フィルタリング技術や認証技術を組み合わせて行います。", exclude: false },
+    { category: "テクノロジ", word: "ベイジアンフィルタリング", question: "統計的な確率に基づいて迷惑メールを判定する方式を何というか", explanation: "単語の出現頻度などを学習して判定するフィルタです。", exclude: false },
+    { category: "テクノロジ", word: "送信元ドメイン認証", question: "送信ドメインの正当性を検証する仕組みを何というか", explanation: "メールのなりすましを防ぐための技術総称です。", exclude: false },
+    { category: "テクノロジ", word: "SPF", question: "DNSに登録されたIPアドレスで送信元を検証する方式を何というか", explanation: "Sender Policy Framework。送信元の正当性をIPで確認します。", exclude: false },
+    { category: "テクノロジ", word: "DKIM", question: "電子署名をメールに付与して送信元を検証する方式を何というか", explanation: "DomainKeys Identified Mail。改ざん検知も可能です。", exclude: false },
+    { category: "テクノロジ", word: "DMARC", question: "SPFやDKIMの検証結果に基づき、不合格時の処理を指定する仕組みは", explanation: "認証失敗時のアクション（拒否・隔離など）をドメイン管理者が指定できます。", exclude: false },
+    { category: "テクノロジ", word: "SMTP AUTH", question: "メール送信時にユーザー認証を求める方式を何と言うか", explanation: "IDとパスワードで認証し、第三者による不正中継を防止します。", exclude: false },
+    { category: "テクノロジ", word: "OP25B", question: "動的IPアドレスからの25番ポートを用いた送信を制限する策は", explanation: "Outbound Port 25 Blocking。プロバイダ側で迷惑メール送信を抑制します。", exclude: false },
+    { category: "テクノロジ", word: "PGP", question: "公開鍵暗号を用いてメールを暗号化する、Web等でも使われる方式は", explanation: "Pretty Good Privacy。証明書なしでも利用可能な暗号化方式です。", exclude: false },
+    { category: "テクノロジ", word: "S/MIME", question: "証明書（PKI）を用いてメールを暗号化・署名する、企業で多い方式は", explanation: "Secure/Multipurpose Internet Mail Extensions。認証局の証明書が必要です。", exclude: false },
+    { category: "テクノロジ", word: "コンテナセキュリティ", question: "コンテナ環境の安全性を確保するための対策を何というか", explanation: "イメージの脆弱性スキャンや、設定管理が重要となります。", exclude: false },
+    { category: "テクノロジ", word: "トレーサビリティマトリクス", question: "開発工程での要件と成果物の対応関係を一覧化した表を何というか", explanation: "要件漏れやテスト漏れを防ぐための追跡用管理資料です。", exclude: false },
+    { category: "テクノロジ", word: "マイクロサービスアーキテクチャ", question: "機能ごとに独立した小さなサービスの集合体で構成する設計手法は", explanation: "変更に強く拡張性が高い一方、運用が複雑になる傾向があります。", exclude: false },
+    { category: "テクノロジ", word: "サーバーレスアーキテクチャ", question: "クラウド側の管理により開発者がサーバーを意識せず実行できる方式は", explanation: "運用負荷が低く、リソースの自動スケーリングが可能です。", exclude: false },
+    { category: "テクノロジ", word: "クリーンアーキテクチャ", question: "ビジネスロジックを中心に、依存関係を分離して保守性を高める設計は", explanation: "技術要素（DB等）の変更がビジネスルールに影響しないように設計します。", exclude: false },
+    { category: "テクノロジ", word: "UXデザイン", question: "利用者の体験全体（使い勝手や満足度）を設計する活動を何というか", explanation: "単なる操作性だけでなく、利用者の感情や満足度向上を目的とします。", exclude: false },
+    { category: "テクノロジ", word: "ユーザーインターフェース（UI）", question: "人とシステムの接点（表示や入力方法）となる部分を何と言うか", explanation: "使いやすさがシステムの品質に直結する、視覚的・操作的な部分です。", exclude: false },
+    { category: "テクノロジ", word: "SOLID原則", question: "保守性を高めるための5つのオブジェクト指向設計原則を何というか", explanation: "単一責任、開放閉鎖など、変更に強い設計のための指針です。", exclude: false },
+    { category: "テクノロジ", word: "ドメイン", question: "システム化の対象となる業務領域や問題領域そのものを何と言うか", explanation: "設計の基盤となる業務知識の範囲を示します。", exclude: false },
+    { category: "テクノロジ", word: "ドメインモデル", question: "業務概念やその関係性をモデル化したものを何というか", explanation: "エンティティ等を用いて、複雑な業務を整理・表現したものです。", exclude: false },
+    { category: "テクノロジ", word: "ドメインロジック", question: "システム独自の価値を生む、業務上の判断や処理規則を何というか", explanation: "技術的なコードと分離して管理すべき、核となるビジネスルールです。", exclude: false },
+    { category: "テクノロジ", word: "ユビキタス言語", question: "開発者と利用者の間で齟齬をなくすための「共通言語」を何というか", explanation: "ドメイン駆動設計（DDD）における、全員が共有する専門用語集です。", exclude: false },
+    { category: "テクノロジ", word: "オートインデント", question: "コードを適切なインデントや改行で自動的に整える機能を何と言うか", explanation: "可読性の向上や構文ミス防止に役立ちます。", exclude: false },
+    { category: "テクノロジ", word: "ブレークポイント", question: "デバッグ時に、プログラムの実行を一時停止させる箇所を何というか", explanation: "その時点での変数の値などを確認するために設定します。", exclude: false },
+    { category: "テクノロジ", word: "サイクロマティック複雑度", question: "プログラム内の分岐数などから複雑さを数値化した指標を何というか", explanation: "数値が高いほどテストが困難で、不具合の温床になりやすいです。", exclude: false },
+    { category: "テクノロジ", word: "トレーサ", question: "プログラムの実行過程を詳細に追跡・記録する仕組みを何というか", explanation: "処理の流れや、性能上のボトルネック分析に利用されます。", exclude: false },
+    { category: "テクノロジ", word: "スナップショット", question: "ある時点でのシステムの状態（ディスク内容等）を丸ごと保存したデータは", explanation: "仮想環境などで、障害発生前の状態への復元などに利用されます。", exclude: false },
+    { category: "テクノロジ", word: "ファジング", question: "ランダムなデータを大量に与えて不具合を探すテスト手法を何と言うか", explanation: "予期しない入力によるクラッシュや脆弱性の発見に有効です。", exclude: false },
+    { category: "テクノロジ", word: "テストの種類", question: "機能・性能・セキュリティなど目的別に分けた検証の分類を何というか", explanation: "システムの品質を多角的に確認するために、段階や目的に応じて実施します。", exclude: false },
+    { category: "テクノロジ", word: "機能テスト", question: "要件定義通りに機能が動作するかを確認するテストを何というか", explanation: "ブラックボックステストの手法で行われるのが一般的です。", exclude: false },
+    { category: "テクノロジ", word: "非機能テスト", question: "性能、信頼性、保守性などの機能以外の要件を確認するテストは", explanation: "使いやすさや高負荷への耐性などを評価します。", exclude: false },
+    { category: "テクノロジ", word: "性能テスト", question: "システムの応答時間やスループットが要件を満たすかを確認するテストは", explanation: "実運用に耐えうる処理速度があるかを検証します。", exclude: false },
+    { category: "テクノロジ", word: "負荷テスト（ストレステスト）", question: "高負荷な状態でシステムの安定性や挙動を確認するテストを何というか", explanation: "想定最大利用時の動作や、限界点を確認します。", exclude: false },
+    { category: "テクノロジ", word: "セキュリティテスト", question: "システムの脆弱性や不正アクセスへの耐性を確認するテストを何というか", explanation: "既知の攻撃手法を試行し、防御力を検証します。", exclude: false },
+    { category: "テクノロジ", word: "回帰テスト（リグレッションテスト）", question: "修正によって他の箇所に不具合（デグレード）が出ていないか確認するテストは", explanation: "再発防止や影響確認のために行います。", exclude: false },
+    { category: "テクノロジ", word: "探索的テスト", question: "事前に詳細なシナリオを作らず実行結果から次の操作を決めるテストは", explanation: "担当者の知識を活かし、想定外の不具合を発見するのに有効です。", exclude: false },
+    { category: "テクノロジ", word: "利用者向けドキュメント", question: "利用者に向けた、操作方法や仕様を説明する文書一式を何というか", explanation: "問い合わせの削減や利便性向上に繋がります。", exclude: false },
+    { category: "テクノロジ", word: "ウィザード", question: "対話形式で手順を案内し、初心者の操作を支援する機能を何というか", explanation: "複雑な設定をステップごとにガイドします。", exclude: false },
+    { category: "テクノロジ", word: "チュートリアル", question: "操作を段階的に学べるように構成された学習資料を何というか", explanation: "導入時の教育やスムーズな利用開始を助けます。", exclude: false },
+    { category: "テクノロジ", word: "オンラインヘルプ", question: "システム画面上で直接参照できるヘルプ機能を何と言うか", explanation: "必要な時に即座に情報を参照でき、ユーザビリティを高めます。", exclude: false },
+    { category: "テクノロジ", word: "リファクタリング", question: "機能を変えずに内部構造を改善する作業を何というか", explanation: "可読性や保守性を高め、将来的な変更を容易にします。", exclude: false },
+    { category: "テクノロジ", word: "改良保守", question: "リリース後の機能向上や追加対応などを目的とした保守作業を何というか", explanation: "ビジネス環境の変化に合わせた機能拡張などを含みます。", exclude: false },
+    { category: "テクノロジ", word: "DevOps", question: "開発チームと運用チームが連携し、迅速かつ安定的な提供を目指す考え方は", explanation: "自動化などを通じて、開発のスピードと運用の信頼性を両立します。", exclude: false },
+    { category: "テクノロジ", word: "MLOps", question: "機械学習モデルの開発と運用を統合・自動化し品質を維持する手法は", explanation: "学習、配布、監視のサイクルを効率的に管理します。", exclude: false },
+    { category: "テクノロジ", word: "モブプログラミング", question: "チーム全員で1つの画面を見ながらコードを書く手法を何というか", explanation: "知識共有が促進され、その場でレビューが行われるため品質が高まります。", exclude: false },
+    { category: "テクノロジ", word: "テスト駆動開発（TDD）", question: "実装の前にテストケースを先に作成して開発を進める手法を何というか", explanation: "バグの削減と、シンプルな設計の維持に寄与します。", exclude: false },
+    { category: "テクノロジ", word: "ソースコードの共同所有", question: "特定の誰かに依存せず、チーム全員がどのコードも編集できる考え方は", explanation: "属人化を防ぎ、保守性やチーム全体の理解度を高めます。", exclude: false },
+    { category: "テクノロジ", word: "継続的インテグレーション（CI）", question: "小さな変更を頻繁にリポジトリへ統合し自動テストを行う手法は", explanation: "早期の不具合発見と、統合時のトラブル削減を可能にします。", exclude: false },
+    { category: "テクノロジ", word: "YAGNI原則", question: "「必要になるまで実装しない（将来のためだけの機能は作らない）」原則は", explanation: "You Ain't Gonna Need It. 無駄な実装を省き、開発効率を高めます。", exclude: false },
+    { category: "テクノロジ", word: "スクラム", question: "コミュニケーションと反復的な開発を重視するアジャイル手法の1つは", explanation: "役割やイベントを定め、チーム一体となって価値を提供します。", exclude: false },
+    { category: "テクノロジ", word: "スクラムチーム", question: "スクラムにおいて自律的に開発を遂行する小規模なチームを何というか", explanation: "特定の役割を持つメンバーで構成される最小単位です。", exclude: false },
+    { category: "テクノロジ", word: "プロダクトオーナー", question: "製品の価値を最大化し開発の優先順位を決定するスクラムの役割は", explanation: "顧客の要件を取りまとめ、バックログの管理責任を負います。", exclude: false },
+    { category: "テクノロジ", word: "開発者", question: "実際の設計・実装・テストを担当するスクラムの役割を何というか", explanation: "スプリントの目標を達成するための実務を担います。", exclude: false },
+    { category: "テクノロジ", word: "スクラムマスター", question: "スクラムのルールを守り、チームの障害を除去する支援役を何というか", explanation: "プロセスの円滑な進行をファシリテートします。", exclude: false },
+    { category: "テクノロジ", word: "プロダクトバックログ", question: "開発すべき要求事項を優先順位順にまとめたリストは", explanation: "プロダクトオーナーによって常に整理・更新されます。", exclude: false },
+    { category: "テクノロジ", word: "スプリントバックログ", question: "現在のスプリントで実行すると決定したタスクの一覧を何というか", explanation: "開発者が管理し、期間内での完了を目指します。", exclude: false },
+    { category: "テクノロジ", word: "SRE", question: "サイトの信頼性向上のため、運用をエンジニアリングで解決する考え方は", explanation: "可用性の維持や定型業務の自動化をソフトウェア工学の視点で行います。", exclude: false },
+    { category: "テクノロジ", word: "継続的デリバリー（CD）", question: "テスト済みのコードを常にリリース可能な状態に保つ手法を何というか", explanation: "迅速かつ安全に、新機能をユーザーに届けるための手法です。", exclude: false },
+    { category: "テクノロジ", word: "継続的デプロイ", question: "変更を自動的に本番環境へ反映（デプロイ）する手法を何というか", explanation: "手動承認を介さず、CI/CDパイプラインを通じて即座に反映します。", exclude: false },
+    { category: "テクノロジ", word: "カオスエンジニアリング", question: "あえてシステムに障害を注入し、耐性を検証・強化する手法を何というか", explanation: "予期せぬ障害時でもサービスが継続できるかを確認します。", exclude: false },
+    { category: "テクノロジ", word: "DevSecOps", question: "開発と運用にセキュリティを統合し初期から安全性を確保する考え方は", explanation: "セキュリティ対策を後回しにせず、プロセス全体に組み込みます。", exclude: false },
+    { category: "テクノロジ", word: "PWA", question: "Webとアプリの利点（オフライン対応等）を併せ持つ技術を何というか", explanation: "Webサイトをネイティブアプリのように扱える仕組みです。", exclude: false },
+    { category: "テクノロジ", word: "ステージング環境", question: "本番公開の直前に同等の構成で最終確認を行うための環境を何というか", explanation: "本番環境に近い条件でテストし、リリースミスを防ぎます。", exclude: false },
+    { category: "テクノロジ", word: "リポジトリ", question: "ソースコードやドキュメントの変更履歴を一元管理する場所を何というか", explanation: "バージョン管理システムにおけるデータの貯蔵庫です。", exclude: false },
+
+    // --- マネジメント系 [2] ---
+    { category: "マネジメント", word: "テーラリング", question: "標準的な手法や規定を、組織やプロジェクトに合わせて調整することを何という", explanation: "規模や特性に応じて手順を最適化し、形骸化を防ぎます。", exclude: false },
+    { category: "マネジメント", word: "SLO", question: "サービス品質の目標値を定めた指標（内部的な努力目標）を何というか", explanation: "可用性や応答時間などの具体的な目標数値です。", exclude: false },
+    { category: "マネジメント", word: "SLI", question: "サービス品質を測定するための実績値の指標を何というか", explanation: "SLOの達成状況を客観的に評価するための実測データです。", exclude: false },
+    { category: "マネジメント", word: "サービスレベル指標", question: "サービスの品質水準を数値化した総称的な指標を何というか", explanation: "品質を客観的に把握し、継続的な改善に繋げます。", exclude: false },
+    { category: "マネジメント", word: "RLO", question: "災害や大規模障害からの復旧目標レベル（水準）を示す指標は", explanation: "Recovery Level Objective。どの程度のレベルまで復旧させるかの目標です。", exclude: false },
+    { category: "マネジメント", word: "KGI", question: "組織の最終的な達成目標を定量的に示す指標を何というか", explanation: "Key Goal Indicator（重要目標達成指標）。戦略のゴールを指します。", exclude: false },
+    { category: "マネジメント", word: "AIOps", question: "AIを活用してログ分析や障害検知などのIT運用を高度化する考え方は", explanation: "運用効率の向上と、障害対応の迅速化を実現します。", exclude: false },
+    { category: "マネジメント", word: "クラウド情報セキュリティ管理基準", question: "クラウド利用時の安全管理を適切に行うための基準を何というか", explanation: "クラウド特有のリスクに対応するための指針です。", exclude: false },
+
+    // --- ストラテジ系 [3] ---
+    { category: "ストラテジ", word: "CDO", question: "組織のデジタル戦略やデータ活用を統括する責任者を何というか", explanation: "Chief Digital Officer。最高デジタル責任者としてDXを推進します。", exclude: false },
+    { category: "ストラテジ", word: "プロセスの可視化・標準化・自動化", question: "効率化のために業務工程の現状を可視化・標準化・自動化する活動は", explanation: "属人化を防ぎ、生産性向上を図るDXの基本要素です。", exclude: false },
+    { category: "ストラテジ", word: "ソブリンクラウド", question: "法規制や国家のデータ要件に対応し、自国で管理可能なクラウド形態は", explanation: "データの主権を保護し、公共分野等で注目されています。", exclude: false },
+    { category: "ストラテジ", word: "クラウドネイティブ", question: "クラウド利用を前提としてシステムを設計・運用する考え方を何というか", explanation: "コンテナやマイクロサービスを活用し、俊敏性を高めます。", exclude: false },
+    { category: "ストラテジ", word: "クラウド・バイ・デフォルト", question: "IT導入時に、まずクラウド利用を第一候補とする方針を何というか", explanation: "政府のIT戦略でも採用されている基本的な考え方です。", exclude: false },
+    { category: "ストラテジ", word: "ITリテラシー", question: "IT（情報技術）を正しく理解し、効果的に活用できる能力を何というか", explanation: "情報社会における活用能力やリテラシーの基礎です。", exclude: false },
+    { category: "ストラテジ", word: "メディアリテラシー", question: "流れてくる情報を批判的に分析し、正しく主捨選択する能力を何というか", explanation: "情報の偏りや信憑性を判断する力が求められます。", exclude: false },
+    { category: "ストラテジ", word: "セキュリティ意識", question: "情報を守り、安全に取り扱おうとする個人の意識を何というか", explanation: "人的対策において最も重要であり、継続的な教育が必要です。", exclude: false },
+    { category: "ストラテジ", word: "Fit to Standard", question: "個別のカスタマイズをせず、標準機能に合わせて業務を変える考え方は", explanation: "導入コストの抑制や将来のアップグレードを容易にします。", exclude: false },
+    { category: "ストラテジ", word: "アンケート", question: "多数の利用者から定量的な情報を収集する調査手法を何というか", explanation: "意識調査や満足度測定に広く使われます。", exclude: false },
+    { category: "ストラテジ", word: "インタビュー", question: "直接的な対話を通じて、深い情報を収集する手法を何というか", explanation: "背景や詳細な意見を把握するのに適しています。", exclude: false },
+    { category: "ストラテジ", word: "ダイナミック・ケイパビリティ", question: "急激な市場変化に応じ、経営資源を再構築して適応させる企業の能力は", explanation: "持続的な競争優位を確立するための組織的な変革能力です。", exclude: false },
+    { category: "ストラテジ", word: "SDGs", question: "2030年までに持続可能な社会を実現するための国際的な共通目標は", explanation: "17の目標と169のターゲットから成る、世界共通の指針です。", exclude: false },
+    { category: "ストラテジ", word: "サーキュラーエコノミー（循環型経済）", question: "廃棄を出さず、資源を再利用・循環させる経済モデルを何というか", explanation: "環境負荷の低減と経済成長の両立を目指します。", exclude: false },
+    { category: "ストラテジ", word: "エコシステム", question: "企業や組織が緩やかに連携し、共生・発展する経済的な仕組みを何というか", explanation: "単独での競争ではなく、ネットワーク全体での価値創出を目指します。", exclude: false },
+    { category: "ストラテジ", word: "差別化戦略", question: "他社にはない独自の特徴（価値）を提供し、価格競争を避ける戦略は", explanation: "製品やサービスに独自の付加価値をつけ、優位性を築きます。", exclude: false },
+    { category: "ストラテジ", word: "ESG投資", question: "環境・社会・ガバナンスへの取り組みを重視する投資スタイルを何というか", explanation: "財務情報だけでなく、非財務面での企業の持続可能性を評価します。", exclude: false },
+    { category: "ストラテジ", word: "VRIO分析", question: "経営資源を価値、希少性、模倣困難性、組織の4観点で分析する手法は", explanation: "企業の内部資源による強みを評価し、競争優位性を判断します。", exclude: false },
+    { category: "ストラテジ", word: "STP分析", question: "市場を細分化し、ターゲットを絞り、自社の立ち位置を定める手法は", explanation: "セグメンテーション、ターゲティング、ポジショニングの略です。", exclude: false },
+    { category: "ストラテジ", word: "コンジョイント分析", question: "価格や機能など、消費者が製品の属性をどう重視しているか分析する手法は", explanation: "複数の選択肢への回答から、各要素の寄与度を推定します。", exclude: false },
+    { category: "ストラテジ", word: "デザイン思考", question: "利用者に共感し、課題解決のための試作と検証を繰り返す思考法は", explanation: "人間中心の視点でイノベーションを生み出す手法です。", exclude: false },
+    { category: "ストラテジ", word: "アサンプションマップ", question: "仮説を整理し不確実性と重要度の2軸で優先度を可視化する図は", explanation: "前提条件を検証し、リスクの高い項目を明確にします。", exclude: false },
+    { category: "ストラテジ", word: "バリュープロポジション", question: "顧客がその製品を選ぶ理由となる、提供価値の定義を何というか", explanation: "顧客のニーズと自社の強みが合致した、独自の提供価値です。", exclude: false },
+    { category: "ストラテジ", word: "ブランドプロポジション", question: "競合と比較した際の、自社ブランドの立ち位置の定義を何と言うか", explanation: "「誰に何を届けるブランドか」を明確にした約束です。", exclude: false },
+    { category: "ストラテジ", word: "ブランドアイデンティティ", question: "企業が消費者に抱いてほしい、一貫したブランドの価値観を何というか", explanation: "ブランドの個性を定義し、長期的な信頼構築の核とします。", exclude: false },
+    { category: "ストラテジ", word: "カスタマージャーニーマップ", question: "顧客が体験する一連のプロセスを、時系列で可視化した図を何というか", explanation: "接点ごとの感情や課題を整理し、体験の改善に役立てます。", exclude: false },
+    { category: "ストラテジ", word: "ペルソナ", question: "製品の典型的な利用者像を、名前や趣味まで具体化した仮想の人物は", explanation: "ターゲットを具体的にイメージし、開発チームの認識を揃えます。", exclude: false },
+    { category: "ストラテジ", word: "参加型デザイン", question: "設計の段階から実際の利用者が参加する手法を何というか", explanation: "ユーザー視点を直接取り入れ、利便性の高い製品を目指します。", exclude: false },
+    { category: "ストラテジ", word: "サービスブループリント", question: "サービス提供のプロセスを、顧客の動きと合わせて可視化した図は", explanation: "業務の流れと顧客体験を統合的に整理・分析できます。", exclude: false },
+    { category: "ストラテジ", word: "プロダクトビジョン", question: "製品が目指す将来像や、解決したい世界観を示したものを何というか", explanation: "チームの進むべき方向性を示し、意思決定の基準となります。", exclude: false },
+    { category: "ストラテジ", word: "ライフサイクルエクステンション", question: "製品の寿命を延ばすために改良や新用途開発を行う戦略を何というか", explanation: "成熟期に入った製品の価値を再定義し、市場寿命を延ばします。", exclude: false },
+    { category: "ストラテジ", word: "ペネトレーションプライシング", question: "市場参入時に極めて低い価格を設定し、一気にシェアを獲得する戦略は", explanation: "薄利多売により早期に市場支配力を高める手法です。", exclude: false },
+    { category: "ストラテジ", word: "ダイナミックプライシング", question: "需給状況に応じて価格をリアルタイムに変動させる方式を何というか", explanation: "航空券などで一般的で、収益の最大化を図ります。", exclude: false },
+    { category: "ストラテジ", word: "インターネット広告", question: "Webサイトやアプリなどのデジタル媒体を利用した広告を何と言うか", explanation: "ターゲティングが容易で、効果測定が数値で即座に行えます。", exclude: false },
+    { category: "ストラテジ", word: "オプトインメール広告", question: "事前に同意（オプトイン）を得た利用者にのみ配信するメール広告は", explanation: "迷惑メールを避け、関心の高い層に効率的にリーチできます。", exclude: false },
+    { category: "ストラテジ", word: "バナー広告", question: "Webページの一部に画像（バナー）を表示する広告形式を何というか", explanation: "視覚的な訴求力が高く、認知度向上などに使われます。", exclude: false },
+    { category: "ストラテジ", word: "ジオターゲティング広告", question: "スマートフォンの位置情報に基づき周辺の店舗等の広告を出す手法は", explanation: "地域密着型の集客に適したマーケティング手法です。", exclude: false },
+    { category: "ストラテジ", word: "リスティング広告", question: "検索結果にキーワードと連動して表示される広告は", explanation: "検索連動型広告とも呼ばれ、顕在顧客へのアプローチに有効です。", exclude: false },
+    { category: "ストラテジ", word: "成果報酬型広告", question: "クリックや購入などの成果が発生した時のみ費用を払う広告は", explanation: "広告主にとってリスクが低く、費用対効果が明確です。", exclude: false },
+    { category: "ストラテジ", word: "SEO", question: "検索結果で自社サイトを上位に表示させるための最適化手法を何というか", explanation: "Search Engine Optimization。自然検索からの流入増加を目指します。", exclude: false },
+    { category: "ストラテジ", word: "LPO", question: "着地ページ(LP)を改善し、成約率を高める施策を何というか", explanation: "Landing Page Optimization。離脱率を下げ、成果（コンバージョン）を最大化します。", exclude: false },
+    { category: "ストラテジ", word: "CVR（コンバージョン率）", question: "Webサイトの訪問者のうち、成果（購入等）に至った割合を何と言うか", explanation: "マーケティング施策の効率を測るための重要な指標です。", exclude: false },
+    { category: "ストラテジ", word: "アフィリエイト", question: "媒体主が成果に応じて報酬を得る形式の広告手法を何と言うか", explanation: "成果報酬型広告の代表例で、多様な個人やメディアを活用できます。", exclude: false },
+    { category: "ストラテジ", word: "レコメンデーション", question: "過去の履歴から、利用者の好みに合う商品を提案する仕組みを何というか", explanation: "購買を促進し、一人ひとりに最適化された体験を提供します。", exclude: false },
+    { category: "ストラテジ", word: "デジタルサイネージ", question: "店舗等にある電子表示装置を用いた情報発信を何と言うか", explanation: "ポスターの電子版として、動的なコンテンツ配信が可能です。", exclude: false },
+    { category: "ストラテジ", word: "A/Bテスト", question: "AとBの2パターンを用意し、どちらがより効果的か検証するテストは", explanation: "比較試験を通じて、Webデザインや広告文の最適解を探ります。", exclude: false },
+    { category: "ストラテジ", word: "クロスメディアマーケティング", question: "テレビ、SNS、雑誌など複数の媒体を連携させるマーケティング手法は", explanation: "多角的なアプローチにより、認知や関心の相乗効果を狙います。", exclude: false },
+    { category: "ストラテジ", word: "MVV", question: "組織の存在意義(M)、将来像(V)、価値観(V)の枠組みは", explanation: "Mission, Vision, Values。経営の根幹となる理念体系です。", exclude: false },
+    { category: "ストラテジ", word: "ペルソナ法", question: "UX設計において、典型的な利用者像を用いる手法は", explanation: "具体的なユーザー視点で製品やサービスの改善を検討します。", exclude: false },
+    { category: "ストラテジ", word: "アイデアソン", question: "短期間で集中的に新しいアイデアを出し合うワークショップは", explanation: "「アイデア」と「マラソン」の造語です。", exclude: false },
+    { category: "ストラテジ", word: "ハッカソン", question: "集中的にプログラム開発や技術検証を行う開発イベントを何というか", explanation: "「ハック」と「マラソン」の造語で、プロトタイプ開発を競います。", exclude: false },
+    { category: "ストラテジ", word: "デジタルツイン", question: "現実の設備データを取得しデジタル空間に忠実に再現する技術は", explanation: "仮想空間でのシミュレーションにより、将来予測や保守に活用します。", exclude: false },
+    { category: "ストラテジ", word: "サイバーフィジカルシステム（CPS）", question: "物理世界（フィジカル）と情報世界（サイバー）を高度に融合させた仕組みは", explanation: "センサーと計算機を統合し、実社会の課題を解決する仕組みです。", exclude: false },
+    { category: "ストラテジ", word: "ITS（高度道路交通システム）", question: "ICTを用いて、交通の安全性、効率性、快適性を高めるシステムは", explanation: "渋帯緩和や事故防止を目的とした、交通インフラの電子化です。", exclude: false },
+    { category: "ストラテジ", word: "Jアラート", question: "緊急情報を政府が瞬時に伝達する全国的な仕組みは", explanation: "人工衛星経由で瞬時に通知します。", exclude: false },
+    { category: "ストラテジ", word: "マイナポータル", question: "行政手続きをオンラインで行える政府のWebサービスは", explanation: "手続きの簡素化や、お知らせ確認ができる個人用サイトです。", exclude: false },
+    { category: "ストラテジ", word: "自治体窓口のキャッシュレス化", question: "窓口での支払いを電子マネー等で行えるようにする事は", explanation: "利便性の向上と、窓口業務の効率化を目的としています。", exclude: false },
+    { category: "ストラテジ", word: "人間中心のAI社会原則", question: "公平性や人の尊厳を重視したAI活用のための基本原則は", explanation: "AIが人に取って代わるのではなく、人を支援する存在であるべきとの指針です。", exclude: false },
+    { category: "ストラテジ", word: "AI利活用ガイドライン", question: "AIを安全かつ適切に活用するための指針を示したガイドラインは", explanation: "リスク管理や倫理への配慮など、利用者向けの指針です。", exclude: false },
+    { category: "ストラテジ", word: "AI開発ガイドライン", question: "AIを開発する際、倫理や安全性等の観点で守るべき指針は", explanation: "開発者が考慮すべき事項を体系化したものです。", exclude: false },
+    { category: "ストラテジ", word: "信頼できるAIのための倫理ガイドライン", question: "EUが発表した、人間の自律性尊重や公平性を重視する倫理指針は", explanation: "欧州におけるAI活用の倫理的な法的枠組みの基礎となっています。", exclude: false },
+    { category: "ストラテジ", word: "人工知能学会", question: "日本におけるAI研究や学術的な基準を示している学会は", explanation: "国内のAI研究をリードし、倫理指針等も策定しています。", exclude: false },
+    { category: "ストラテジ", word: "AIの社会的受容性", question: "AIが社会に受け入れられる度合いのことを何と言うか", explanation: "信頼性や説明可能性などが、この度合いに大きく影響します。", exclude: false },
+    { category: "ストラテジ", word: "特化型AI", question: "画像認識や翻訳など、ある特定の限られた目的のみを行うAIは", explanation: "現在実用化されているAIのほとんどがこれに該当します。", exclude: false },
+    { category: "ストラテジ", word: "汎用AI（AGI）", question: "人間と同じように多様なタスクをこなし汎用的な知能を持つAIは", explanation: "あらゆる知的作業において人間と同等以上の能力を目指すAIです。", exclude: false },
+    { category: "ストラテジ", word: "フレーム問題", question: "AIが「重要な情報」を区別できない難問は", explanation: "無限の情報の中から必要なものだけを絞り込むことの難しさです。", exclude: false },
+    { category: "ストラテジ", word: "シンボルグラウンディング問題", question: "AIが「記号」と「現実の意味」を結びつけられない問題は", explanation: "AIが「言葉の意味」を本当に理解しているわけではないことを示す課題です。", exclude: false },
+    { category: "ストラテジ", word: "AIによる認識", question: "AIが画像や音声などの状況を捉えて意味を抽出する処理は", explanation: "五感に近い機能をAIが持ち、データを分類・理解することです。", exclude: false },
+    { category: "ストラテジ", word: "AIによる自動化", question: "AIが人の判断を代替し定型業務を自動で実行することは", explanation: "生産性の向上や、人為的なミスの削減に寄与します。", exclude: false },
+    { category: "ストラテジ", word: "AIアシスタント", question: "対話形式で業務の補助や質問対応を行うAIは", explanation: "ユーザーのタスク遂行をサポートします。", exclude: false },
+    { category: "ストラテジ", word: "生成AI", question: "大量データに基づき新しい文章や画像等をゼロから作り出すAIは", explanation: "創造的なタスクやコンテンツ制作の効率化に活用されています。", exclude: false },
+    { category: "ストラテジ", word: "マルチモーダルAI", question: "テキスト、画像、音声など異なる種類の情報を同時に処理するAIは", explanation: "情報を統合的に理解し、より高度な応答を可能にします。", exclude: false },
+    { category: "ストラテジ", word: "ランダム性", question: "生成AIの出力結果が確率的に変動する性質を何というか", explanation: "多様性を生む一方、再現性の確保が課題となる場合もあります。", exclude: false },
+    { category: "ストラテジ", word: "XAI（説明可能なAI）", question: "AIの判断理由を人間が理解できるように説明する技術は", explanation: "AIのブラックボックス問題を解消し、信頼性を高めます。", exclude: false },
+    { category: "ストラテジ", word: "HITL（Human-in-the-loop）", question: "AIの判断プロセスにおいて常に人間が介入・監視する仕組みは", explanation: "誤判断の修正や、最終決定の責任を人間が負うための仕組みです。", exclude: false },
+    { category: "ストラテジ", word: "AI利用者の関与によるバイアス", question: "利用者のフィードバックや偏りがAIの結果を歪める現象は", explanation: "利用者の主観がAIの学習や動作に反映されてしまう問題です。", exclude: false },
+    { category: "ストラテジ", word: "アルゴリズムのバイアス", question: "アルゴリズムの構造や計算式に起因する偏りは", explanation: "学習データの偏りが主な原因となり、不公平な判断を生む恐れがあります。", exclude: false },
+    { category: "ストラテジ", word: "AIサービスの責任論", question: "AIの判断により不利益が生じた際の責任の所在を巡る議論は", explanation: "開発者、提供者、利用者の間での法的・倫理的な責任の所在を巡る論点です。", exclude: false },
+    { category: "ストラテジ", word: "ハルシネーション（幻覚）", question: "生成AIが「もっともらしい嘘」を生成してしまう現象は", explanation: "確信を持って誤った内容を出力するため、事実確認が不可欠です。", exclude: false },
+    { category: "ストラテジ", word: "AIサービスのオプトアウトポリシー", question: "学習に自分のデータを利用させないように選択・拒否できる方針は", explanation: "プライバシー保護や著作権保護のために重要です。", exclude: false },
+    { category: "ストラテジ", word: "CBDC（中央銀行デジタル通貨）", question: "各国の中央銀行が発行する法的裏付けを持つデジタル通貨は", explanation: "現金と同様の信頼性を持ち、キャッシュレス化を推進します。", exclude: false },
+    { category: "ストラテジ", word: "D2C", question: "メーカーが中間業者を介さず消費者に直接販売する形態は", explanation: "Direct to Consumer。顧客と直接関係を深めることができます。", exclude: false },
+    { category: "ストラテジ", word: "NFT（非代替性トークン）", question: "デジタル上で「唯一無二であること」を証明・管理できる資産は", explanation: "ブロックチェーン技術を用い、権利を証明します。", exclude: false },
+    { category: "ストラテジ", word: "アカウントアグリゲーション", question: "複数の口座情報を1つのアプリ等で一元管理する仕組みは", explanation: "資産状況を一目で把握できます。", exclude: false },
+    { category: "ストラテジ", word: "eKYC", question: "スマホ等を用いてオンライン上で完結する本人確認の手法は", explanation: "electronic Know Your Customer。即座に口座開設などが可能です。", exclude: false },
+    { category: "ストラテジ", word: "AML/CFT対策", question: "マネーロンダリングやテロ資金供与を防ぐための対策は", explanation: "金融機関等において必須のセキュリティおよび法令遵守対策です。", exclude: false },
+    { category: "ストラテジ", word: "エッジコンピューティング", question: "データを端末に近い場所で処理する方式は", explanation: "遅延を減らし、リアルタイム性やプライバシー保護に有効です。", exclude: false },
+    { category: "ストラテジ", word: "エッジAI", question: "スマホ等のデバイス上で直接動作するAIは", explanation: "ネットワーク環境に依存せず、高速な応答と高いセキュリティを実現します。", exclude: false },
+    { category: "ストラテジ", word: "ARグラス", question: "現実の視界にデジタル情報を重ねて表示する眼鏡型端末は", explanation: "ハンズフリーでの現場作業支援やナビに活用されます。", exclude: false },
+    { category: "ストラテジ", word: "MRグラス", question: "現実と仮想を高度に融合させ相互に操作できるようにする機器は", explanation: "複合現実（Mixed Reality）を実現します。", exclude: false },
+    { category: "ストラテジ", word: "VRゴーグル", question: "仮想空間を視界全体に映し出すゴーグル型の表示装置は", explanation: "没入感を提供し、教育やエンタメで使われます。", exclude: false },
+    { category: "ストラテジ", word: "スマートグラス", question: "表示やカメラ、通信機能を搭載した眼鏡型の多機能端末は", explanation: "現場作業の効率を高めます。", exclude: false },
+    { category: "ストラテジ", word: "スマートシティ", question: "ICTを駆使して都市機能を最適化する構想は", explanation: "生活の利便性向上と持続可能な都市運営を目指します。", exclude: false },
+    { category: "ストラテジ", word: "スーパーシティ", question: "複数分野のデータを連携させ都市課題を解決する先進都市は", explanation: "規制緩和を伴う抜本的な改革を推進します。", exclude: false },
+    { category: "ストラテジ", word: "スマート農業", question: "ICTやロボット技術を活用し省力化を目指す農業は", explanation: "担い手不足の解消や生産性向上が目的です。", exclude: false },
+    { category: "ストラテジ", word: "MaaS", question: "多様な移動手段を1つのサービスとして提供する事は", explanation: "Mobility as a Service。移動の効率化と利便性向上を目指します。", exclude: false },
+    { category: "ストラテジ", word: "CASE", question: "次世代自動車の主要トレンドを示す言葉は", explanation: "Connected, Autonomous, Shared, Electricの4要素を指します。", exclude: false },
+    { category: "ストラテジ", word: "自動運転レベル", question: "運転自動化の度合いを示す段階分類を何というか", explanation: "レベル0から5までの国際的な基準です。", exclude: false },
+    { category: "ストラテジ", word: "カーボンフットプリント", question: "温室効果ガス排出量を二酸化炭素に換算した値は", explanation: "排出量を辿り、見える化した指標です。", exclude: false },
+    { category: "ストラテジ", word: "コーポレートガバナンス・コード", question: "経営の透明性を高めるための企業統治の指針を何というか", explanation: "上場企業などが守るべき、統治の基本原則です。", exclude: false },
+    { category: "ストラテジ", word: "統合報告書", question: "財務情報と非財務情報（ESG等）をまとめた報告書は", explanation: "企業の長期的な価値創造ストーリーを投資家に説明します。", exclude: false },
+    { category: "ストラテジ", word: "アニュアルレポート", question: "企業が年度ごとに公表する経営成績の報告書を何というか", explanation: "株主や投資家向けに事業概況を説明する資料です。", exclude: false },
+    { category: "ストラテジ", word: "CSR報告書", question: "社会や環境への貢献状況をまとめた報告書は", explanation: "企業の社会的責任の履行状況を開示します。", exclude: false },
+    { category: "ストラテジ", word: "リスキリング", question: "新たな職務に対応するためスキルを習得し直すことは", explanation: "技術革新に対応できる人材を育成します。", exclude: false },
+    { category: "ストラテジ", word: "リテンション", question: "優秀な人材を組織に留め定着させるための施策は", explanation: "離職防止やエンゲージメント向上のための人事的な取り組みです。", exclude: false },
+    { category: "ストラテジ", word: "ワーク・エンゲージメント", question: "仕事に対して活力や熱意を感じている状態を何と言うか", explanation: "生産性の向上や従業員の幸福度に深く関わります。", exclude: false },
+    { category: "ストラテジ", word: "DE&I", question: "多様性(D)、公平性(E)、包摂(I)を重視する考え方は", explanation: "多様な人材が活躍できる組織作りを目指します。", exclude: false },
+    { category: "ストラテジ", word: "ウェルビーイング", question: "心身ともに健康で、社会的にも満たされている状態は", explanation: "従業員の充実感が、長期的な企業価値向上に繋がります。", exclude: false },
+    { category: "ストラテジ", word: "垂直思考", question: "論理的に深掘りし最適な解決策を導き出す思考法は", explanation: "ロジカルシンキング。効率的に結論へ到達するのに有効です。", exclude: false },
+    { category: "ストラテジ", word: "水平思考", question: "自由な発想で新しい多角的な視点を生み出す思考法は", explanation: "ラテラルシンキング。イノベーションの創出に効果的です。", exclude: false },
+    { category: "ストラテジ", word: "仮説思考", question: "まず仮説を立てそれを検証しながら核心に迫る思考法は", explanation: "情報が不十分な段階でもスピードを上げて進められます。", exclude: false },
+    { category: "ストラテジ", word: "AI言語モデルのスケーリング則", question: "データの規模を大きくするほど性能が飛躍的に向上する法則は", explanation: "計算資源、データ量、パラメータ数と性能の相関関係を示します。", exclude: false },
+    { category: "ストラテジ", word: "第4次産業革命", question: "AIやIoTによる技術革新で産業構造が抜本的に変化することは", explanation: "社会全体がデジタル化する大きな変革期です。", exclude: false },
+    { category: "ストラテジ", word: "Society 5.0", question: "サイバー空間とフィジカル空間を高度に融合させた未来社会は", explanation: "日本が提唱する、経済発展と社会課題解決を両立する社会ビジョンです。", exclude: false },
+    { category: "ストラテジ", word: "データ駆動型社会（データドリブン社会）", question: "客観的なデータに基づいて価値創出を行う社会は", explanation: "データの活用が、政策や経営、生活に不可欠な役割を果たします。", exclude: false },
+    { category: "ストラテジ", word: "DX（デジタルトランスフォーメーション）", question: "デジタル技術の浸透によりビジネスモデル等を根本から変える事は", explanation: "単なる効率化ではなく、競争優位を確立する取り組みです。", exclude: false },
+    { category: "ストラテジ", word: "CX（コーポレート・トランスフォーメーション）", question: "企業の事業構造や組織文化を抜本的に変革する事は", explanation: "DXの上位概念として、全社的な再編や改革を指します。", exclude: false },
+    { category: "ストラテジ", word: "GX（グリーン・トランスフォーメーション）", question: "環境対応を経済成長の機会と捉え社会構造を変革する事は", explanation: "脱炭素社会の実現と、産業競争力の強化を同時に進めます。", exclude: false },
+    { category: "ストラテジ", word: "GXリーグ", question: "排出量取引や情報開示を通じてGXを推進する産業界の枠組みは", explanation: "GXを推進する企業の連盟です。", exclude: false },
+    { category: "ストラテジ", word: "カーボンニュートラル", question: "温室効果ガスの排出と吸収を均衡させ実質ゼロにする事は", explanation: "2050年までの達成を目指す、世界的な目標となっています。", exclude: false },
+    { category: "ストラテジ", word: "カーボントレーシング", question: "サプライチェーン全体での排出量を正確に追跡・把握する手法は", explanation: "効率的な削減施策の策定に役立ちます。", exclude: false },
+    { category: "ストラテジ", word: "国家戦略特別区域法", question: "特区での大胆な規制緩和や改革を可能にするための法律は", explanation: "先端技術の実証実験や社会実装を後押しします。", exclude: false },
+    { category: "ストラテジ", word: "スーパーシティ構想", question: "AI等の先端技術を導入し暮らしを便利にする構想は", explanation: "住民のQoLを向上させます。", exclude: false },
+    { category: "ストラテジ", word: "ブレーンライティング", question: "アイデアを紙に書き、それを回して発想を広げる手法は", explanation: "短時間で多くの意見を集められます。", exclude: false },
+    { category: "ストラテジ", word: "モデル化", question: "現実の現象を簡略化し図や数式等で表現することを何というか", explanation: "本質的な要素を抽出し、シミュレーションを容易にします。", exclude: false },
+    { category: "ストラテジ", word: "調査データ", question: "アンケート等によって得られた一次データを何というか", explanation: "意識調査や市場動向の把握に用いられます。", exclude: false },
+    { category: "ストラテジ", word: "実験データ", question: "条件をコントロールした実験等によって取得されたデータを何というか", explanation: "因果関係の分析や、仮説の検証に適しています。", exclude: false },
+    { category: "ストラテジ", word: "人の行動ログデータ", question: "スマホの位置情報など人の行動履歴データは", explanation: "消費行動の分析や混雑予測などに活用されます。", exclude: false },
+    { category: "ストラテジ", word: "機械の稼働ログデータ", question: "工場設備などの動作状況を記録したデータを何というか", explanation: "予防保守や、工程の効率化分析に利用されます。", exclude: false },
+    { category: "ストラテジ", word: "ソーシャルメディアデータ", question: "SNSの発言等から得られるテキスト・画像データは", explanation: "世論の傾向把握などに使われます。", exclude: false },
+    { category: "ストラテジ", word: "GISデータ", question: "地図情報と位置情報を重ね合わせる地理情報システムデータは", explanation: "都市計画や商圏分析に活用されます。", exclude: false },
+    { category: "ストラテジ", word: "量的データ", question: "数値で表現できるデータを何というか", explanation: "計算や統計解析、グラフ化に適したデータです。", exclude: false },
+    { category: "ストラテジ", word: "質的データ", question: "性質や属性を表すデータを何というか", explanation: "分類や順序の比較、定性的な分析に使われます。", exclude: false },
+    { category: "ストラテジ", word: "一次データ", question: "自分たちで直接収集した未加工のデータを何というか", explanation: "目的に最も適しており、信頼性も確認しやすいです。", exclude: false },
+    { category: "ストラテジ", word: "二次データ", question: "他者が公表した政府統計などの既存データは", explanation: "収集コストを抑えられます。", exclude: false },
+    { category: "ストラテジ", word: "メタデータ", question: "そのデータ自体を説明する付帯情報を何というか", explanation: "データの検索性を高め、適切な管理を可能にします。", exclude: false },
+    { category: "ストラテジ", word: "構造化データ", question: "表形式で整理されデータベース等で扱いやすいデータは", explanation: "ExcelやRDBのテーブルのように定義がはっきりしたデータです。", exclude: false },
+    { category: "ストラテジ", word: "非構造化データ", question: "文章や画像など、決まった形式を持たないデータは", explanation: "ビッグデータの多くを占め、解析にはAI等の技術が必要です。", exclude: false },
+    { category: "ストラテジ", word: "時系列データ", question: "時間の経過とともに順に並ぶデータを何というか", explanation: "トレンドの把握や将来予測に使われます。", exclude: false },
+    { category: "ストラテジ", word: "クロスセクションデータ", question: "一時点において複数の対象を調査したデータは", explanation: "同一時点での地域間比較などに適しています。", exclude: false },
+    { category: "ストラテジ", word: "Webクローリング", question: "プログラムがWebサイトを自動で巡回し情報を収集する手法は", explanation: "検索エンジンの基礎技術です。", exclude: false },
+    { category: "ストラテジ", word: "Webスクレイピング", question: "Webページから必要な項目や情報を抽出する技術は", explanation: "価格比較などに使われますが、規約の遵守が重要です。", exclude: false },
+    { category: "ストラテジ", word: "データのサイロ化", question: "部署ごとにデータが孤立し連携ができない状態は", explanation: "全体最適の妨げとなり、DX推進の障壁となります。", exclude: false },
+    { category: "ストラテジ", word: "データ結合", question: "複数のデータを1つのデータセットにまとめる処理は", explanation: "新しい洞察（分析価値）を生み出します。", exclude: false },
+    { category: "ストラテジ", word: "名寄せ", question: "表記の揺れを修正し同一の対象を特定・統合する事は", explanation: "重複を排除し正確な分析を可能にする前処理です。", exclude: false },
+    { category: "ストラテジ", word: "外れ値・欠損値の処理", question: "極端な値や抜けている箇所を適切に処理する事は", explanation: "分析の精度を保つために必須のクレンジング作業です。", exclude: false },
+    { category: "ストラテジ", word: "標準化", question: "異なる尺度のデータを一定の基準に揃える処理は", explanation: "単位の異なる項目を公平に分析するために行います。", exclude: false },
+    { category: "ストラテジ", word: "アノテーション", question: "AI学習のためにデータにラベルや意味を付与する作業は", explanation: "教師あり学習の「正解」を作るための重要な工程です。", exclude: false },
+    { category: "ストラテジ", word: "季節調整", question: "経済指標等で季節的な要因による変動を取り除く処理は", explanation: "真の景気動向を把握するために行われます。", exclude: false },
+    { category: "ストラテジ", word: "移動平均", question: "データの変動を平均化し長期的な傾向を捉える手法は", explanation: "一時的なノイズを排除できます。", exclude: false },
+    { category: "ストラテジ", word: "周期性", question: "一定の周期で繰り返されるデータの性質を何というか", explanation: "需要予測や売上予測において重要な特徴です。", exclude: false },
+    { category: "ストラテジ", word: "BI（ビジネス・インテリジェンス）", question: "データを分析し経営の意思決定を支援する手法やツールは", explanation: "グラフ等で可視化（ダッシュボード化）し判断を助けます。", exclude: false },
+    { category: "ストラテジ", word: "データマイニング", question: "大量データから規則性や知識を見つけ出す手法は", explanation: "「データの採掘」という意味で、有益な相関を発見します。", exclude: false },
+    { category: "ストラテジ", word: "テキストマイニング", question: "自由記述などの文章データを解析し情報を抽出する手法は", explanation: "顧客の不満点や感情の分析に活用されます。", exclude: false },
+    { category: "ストラテジ", word: "アソシエーション分析", question: "「Aを買った人はBも買う」といった相関を分析する手法は", explanation: "マーケットバスケット分析とも呼ばれます。", exclude: false },
+    { category: "ストラテジ", word: "リフト値", question: "アソシエーション分析で併売の強さを示す指標は", explanation: "真の関連性の強さを測るための数値です。", exclude: false },
+    { category: "ストラテジ", word: "ビッグデータ", question: "巨大、高速、多種多様なデータの集まりを何というか", explanation: "非構造化データも含みます。", exclude: false },
+    { category: "ストラテジ", word: "オープンデータ", question: "誰もが自由に利用・再配布できる公開されたデータは", explanation: "政府や自治体が公開する統計データなどが代表例です。", exclude: false },
+    { category: "ストラテジ", word: "パーソナルデータ", question: "個人を特定できる情報や行動に関する情報は", explanation: "プライバシー保護と利活用の両立が課題です。", exclude: false },
+    { category: "ストラテジ", word: "データのライフサイクル", question: "課題定義から収集、分析、提案に至るデータ活用の体系は", explanation: "分析の目的を明確にし、成果に繋げる流れです。", exclude: false },
+    { category: "ストラテジ", word: "シミュレーション", question: "仮想モデルを用いて現実の事象を再現・試行する手法は", explanation: "予測や複数シナリオの検証に使われます。", exclude: false },
+    { category: "ストラテジ", word: "シミュレーションのデータ同化", question: "観測データとシミュレーションモデルを融合させる手法は", explanation: "気象予報などでモデルのずれを現実のデータで修正します。", exclude: false },
+    { category: "ストラテジ", word: "パターン発見", question: "データの中から規則的に現れる形を見つけ出すことは", explanation: "画像認識や異常検知、将来予測の基盤です。", exclude: false },
+    { category: "ストラテジ", word: "最適化", question: "制約の下で利益最大化やコスト最小化の値を求める事は", explanation: "配送ルートの効率化などに使われます。", exclude: false },
+    { category: "ストラテジ", word: "データサイエンティスト", question: "統計、IT、業務知識を兼ね備えデータから価値を創出する人は", explanation: "高度な分析スキルでビジネス課題の解決を担います。", exclude: false },
+    { category: "ストラテジ", word: "母集団", question: "統計調査において調査対象の全体を何というか", explanation: "分析の結果が当てはまるべき本来の全体集合です。", exclude: false },
+    { category: "ストラテジ", word: "標本抽出（サンプリング）", question: "母集団の中から調査するために一部を抜き出すことを何というか", explanation: "全体を推測するために行います。", exclude: false },
+    { category: "ストラテジ", word: "国勢調査", question: "5年ごとに行われる、国内全ての世帯を対象とした全数調査は", explanation: "最も大規模な全数調査です。", exclude: false },
+    { category: "ストラテジ", word: "アンケート調査", question: "用意した質問票に対し、回答を得ることで情報を集める手法は", explanation: "多くの人の意見を把握するのに適しています。", exclude: false },
+    { category: "ストラテジ", word: "全数調査", question: "母集団の全てを1つ残らず調べる調査は", explanation: "精度は100%ですが、膨大なコストがかかります。", exclude: false },
+    { category: "ストラテジ", word: "単純無作為抽出", question: "母集団の全ての要素に等しい確率で選ばれるチャンスを与える法は", explanation: "統計的に最も公平な抽出方法です。", exclude: false },
+    { category: "ストラテジ", word: "層別抽出", question: "母集団をグループに分け、各層から抽出する方法は", explanation: "グループごとの特徴を反映させやすいです。", exclude: false },
+    { category: "ストラテジ", word: "多段抽出", question: "地域を選び、次にその中の世帯を選ぶといった段階的な抽出法は", explanation: "大規模な全国調査などで効率を高めるために使われます。", exclude: false },
+    { category: "ストラテジ", word: "精度と偏り", question: "「正確さ」と「結果のずれ」の関係を何というか", explanation: "これらはトレードオフの関係になることが多いです。", exclude: false },
+    { category: "ストラテジ", word: "統計的バイアス", question: "設計が悪く結果が一定の方向に歪んでしまうことを何というか", explanation: "不十分な対策は誤った結論を招きます。", exclude: false },
+    { category: "ストラテジ", word: "選択バイアス", question: "抽出された標本が母集団を正しく代表していない偏りは", explanation: "回答者に偏りがある場合など、妥当性を損ないます。", exclude: false },
+    { category: "ストラテジ", word: "情報バイアス", question: "質問の仕方や回答の思い出し間違いなどで生じる情報の歪みは", explanation: "情報の収集や伝達の過程で生じるエラーです。", exclude: false },
+    { category: "ストラテジ", word: "認知バイアス", question: "思い込みや周囲の意見に引きずられ判断が偏る心理現象は", explanation: "合理的な意思決定を妨げます。", exclude: false },
+    { category: "ストラテジ", word: "棒グラフ", question: "複数のカテゴリーの数値を、棒の長さで比較して表すグラフは", explanation: "大きさの違いを比較するのに最も適しています。", exclude: false },
+    { category: "ストラテジ", word: "折れ線グラフ", question: "時間の経過による数値の変化（推移）を線でつなぐグラフは", explanation: "時系列データの増減傾向の把握に有効です。", exclude: false },
+    { category: "ストラテジ", word: "箱ひげ図", question: "中央値、ばらつき、外れ値を1つの図で示したものは", explanation: "データの分布範囲をグループ間で比較できます。", exclude: false },
+    { category: "ストラテジ", word: "ヒートマップ", question: "数値の大きさを色の濃淡等で地図や表の上に表現した図は", explanation: "全体の傾向を一目で捉えられます。", exclude: false },
+    { category: "ストラテジ", word: "レーダーチャート", question: "複数の評価項目を放射状にプロットしバランスを比較する図は", explanation: "個別の特性や強み・弱みを視覚的に把握できます。", exclude: false },
+    { category: "ストラテジ", word: "モザイク図", question: "2つの質的データの相関を面積の分割で示した図は", explanation: "クロス集計結果を可視化するのに有効です。", exclude: false },
+    { category: "ストラテジ", word: "クロス集計表", question: "2つの質問項目を組み合わせ回答の度数をまとめた表は", explanation: "アンケート分析の基本です。", exclude: false },
+    { category: "ストラテジ", word: "分割表", question: "カテゴリー間の関連性を表す、クロス集計結果を示す表は", explanation: "構造を把握し、統計的な検定にも使われます。", exclude: false },
+    { category: "ストラテジ", word: "相関係数行列", question: "複数の変数間の相関係数をまとめた行列形式の表は", explanation: "どの項目同士に強い相関があるかを網羅的に把握できます。", exclude: false },
+    { category: "ストラテジ", word: "散布図行列", question: "全ての変数の組み合わせについて散布図を一覧化した図は", explanation: "多数の変数間の関係性を視覚的に一度に探索できます。", exclude: false },
+    { category: "ストラテジ", word: "デンドログラム", question: "クラスタ分析の結果としてデータの結合過程を樹形図で示したものは", explanation: "どのデータ同士が似ているかを判断できます。", exclude: false },
+    { category: "ストラテジ", word: "複合グラフ", question: "棒グラフと折れ線グラフのように異なるグラフを重ねたものは", explanation: "実績と目標などを同時に比較できます。", exclude: false },
+    { category: "ストラテジ", word: "2軸グラフ", question: "左右に2つの異なる尺度の縦軸を持つ図は", explanation: "数値の大きさが極端に違う場合に便利です。", exclude: false },
+    { category: "ストラテジ", word: "ロジックツリー", question: "問題を要素ごとに論理的にツリー形式で分解した図は", explanation: "「Why」や「How」を繰り返し解決策を導きます。", exclude: false },
+    { category: "ストラテジ", word: "コンセプトマップ", question: "概念やキーワードの関係を線や矢印でつないで可視化した図は", explanation: "複雑な構造やアイデアの繋がりを整理します。", exclude: false },
+    { category: "ストラテジ", word: "シェープファイル", question: "GISで使われるベクターデータの標準形式は", explanation: "図形情報と属性情報をセットで管理します。", exclude: false },
+    { category: "ストラテジ", word: "共起キーワード", question: "テキスト中で特定の言葉がセットで頻繁に出現する関係は", explanation: "文脈を捉え、重要な言葉の繋がりを発見します。", exclude: false },
+    { category: "ストラテジ", word: "情報解析（データアナリティクス）", question: "統計傾向を読み取り、背景にある「意味」を引き出す活動は", explanation: "具体的な提言に繋げます。", exclude: false },
+    { category: "ストラテジ", word: "非目的外利用", question: "許可された目的以外で情報を利用したり提供したりする行為は", explanation: "個人情報保護の観点から制限されています。", exclude: false },
+    { category: "ストラテジ", word: "匿名加工情報", question: "個人を識別できないよう加工し復元不可能にした情報は", explanation: "ビッグデータとしての自由な利活用を可能にします。", exclude: false },
+    { category: "ストラテジ", word: "労働施策総合推進法（パワハラ防止法）", question: "パワハラ等の防止措置を事業主に義務付けている法律は", explanation: "職場環境の改善が目的です。", exclude: false },
+    { category: "ストラテジ", word: "フリーランス保護新法", question: "フリーランスとの取引を適正化する法律は", explanation: "支払遅延の防止などを図ります。", exclude: false },
+    { category: "ストラテジ", word: "高年齢者雇用安定法", question: "高齢者が長く働けるよう就業機会の確保を求める法律は", explanation: "70歳までの努力義務などが定められています。", exclude: false },
+    { category: "ストラテジ", word: "下請法", question: "下請事業者への買いたたき等を禁止する法は", explanation: "弱い立場の事業者の利益を保護します。", exclude: false },
+    { category: "ストラテジ", word: "特定デジタルプラットフォーム透明化法", question: "巨大IT企業と出店企業との取引の公正性を高める法は", explanation: "不透明な取引条件の改善を目的とします。", exclude: false },
+    { category: "ストラテジ", word: "官民データ", question: "公共機関と民間企業が保有する社会全体の共有財産データは", explanation: "連携して社会課題の解決を目指します。", exclude: false },
+    { category: "ストラテジ", word: "行政手続きのオンライン化原則", question: "行政手続きを原則オンラインで行えるようにする方針は", explanation: "紙や押印、対面を廃止し、利便性を向上させます。", exclude: false },
+    { category: "ストラテジ", word: "官民データ活用推進基本計画", question: "データの活用を促進し豊かな社会を実現するための推進方針は", explanation: "具体的な施策と目標を定めています。", exclude: false },
+    { category: "ストラテジ", word: "情報通信技術格差（デジタル・デバイド）の是正", question: "ICTを利用できる人とできない人の格差を解消する策は", explanation: "誰一人取り残さない社会を目指します。", exclude: false },
+    { category: "ストラテジ", word: "ビジネスと人権", question: "サプライチェーン等での人権侵害を防止すべきという考えは", explanation: "人権デューデリジェンスの実施などが求められます。", exclude: false },
+    { category: "ストラテジ", word: "ネチケット", question: "インターネットを利用する際の基本的なマナーは", explanation: "トラブルを避けるための心得です。", exclude: false },
+    { category: "ストラテジ", word: "研究不正行為（FFP）", question: "科学研究における捏造、改ざん、盗用の3つを何というか", explanation: "研究の信頼性を揺るがす重大な倫理違反です。", exclude: false },
+    { category: "ストラテジ", word: "チェーンメール", question: "他人へ転送するように促す悪意ある虚偽メールは", explanation: "デマ拡散の原因となるため無視が鉄則です。", exclude: false },
+    { category: "ストラテジ", word: "フェイクニュース", explanation: "世論操作等のために作られた意図的な虚偽情報は", explanation: "冷静な情報の審議確認が必要です。", exclude: false },
+    { category: "ストラテジ", word: "マルインフォメーション", question: "事実に基づいた情報を悪意を持って拡散することは", explanation: "意図的にプライバシーを晒したりする行為です。", exclude: false },
+    { category: "ストラテジ", word: "ディスインフォメーション", question: "意図的な虚偽情報を流し誤解を与える攻撃的行為は", explanation: "情報戦や世論操作の一種です。", exclude: false },
+    { category: "ストラテジ", word: "ミスインフォメーション", question: "悪意はないが、誤情報であることを知らずに拡散することは", explanation: "うっかり広めてしまう不正確な情報です。", exclude: false },
+    { category: "ストラテジ", word: "ヘイトスピーチ", question: "特定の属性への憎悪を煽る表現は", explanation: "深刻な人権侵害です。", exclude: false },
+    { category: "ストラテジ", word: "エコチェンバー（共鳴室）現象", question: "自分の意見に近い情報ばかりが届き考えが極端に強化される状態は", explanation: "客観性を失うリスクがあります。", exclude: false },
+    { category: "ストラテジ", word: "フィルターバブル", question: "アルゴリズムにより自分が見たい情報しか表示されなくなる状態は", explanation: "視野が狭まる問題です。", exclude: false },
+    { category: "ストラテジ", word: "デジタルタトゥー", question: "ネット上に半永久的に残り続ける個人の活動記録は", explanation: "一度拡散すると削除が困難です。", exclude: false },
+    { category: "ストラテジ", word: "有害サイトアクセス制限（フィルタリング）", question: "子供に有害なサイト等への接続を制限する仕組みは", explanation: "安全なネット利用環境を整えます。", exclude: false },
+    { category: "ストラテジ", word: "ファクトチェック", question: "情報の真偽を客観的な証拠に基づいて検証する取り組みは", explanation: "デマの拡散を防ぐための活動です。", exclude: false },
+    { category: "ストラテジ", word: "ELSI", question: "先端技術の導入における倫理的、法的、社会的な課題の検討枠組みは", explanation: "社会実装前に負の影響を最小化します。", exclude: false },
+    { category: "ストラテジ", word: "集団思考（グループシンク）", question: "集団内で批判的な意見が出ずに誤った決定をする現象は", explanation: "同調圧力により判断力が低下する状態です。", exclude: false },
+    { category: "ストラテジ", word: "プロバイダ責任制限法（情報流通プラットフォーム対処法）", question: "SNS等での誹謗中傷への対策や発信者情報の開示を定めた法は", explanation: "被害者の迅速な救済などを規定します。", exclude: false },
+    { category: "ストラテジ", word: "インボイス制度（適格請求書等保存方式）", question: "消費税の仕入れ税額控除を受けるために請求書保存を義務付ける制度は", explanation: "正確な税率や税額を把握するための制度です。", exclude: false },
+    { category: "ストラテジ", word: "道路運送車両法", question: "自動車の安全基準を定め車検制度の根拠となっている法律は", explanation: "安全確保と環境保全が目的です。", exclude: false },
+    { category: "ストラテジ", word: "航空法", question: "ドローンの飛行ルール等を定めた法は", explanation: "空の安全確保やテロ防止のための法律です。", exclude: false },
+    { category: "ストラテジ", word: "小型無人機等飛行禁止法", question: "原発等の重要施設周辺でのドローン飛行を禁止する法は", explanation: "テロ等の未然防止が主目的です。", exclude: false },
+    { category: "ストラテジ", word: "労働安全衛生法", question: "職場の安全基準を定め労働者の健康と安全を確保する法律は", explanation: "機械の安全装置設置などを義務付けます。", exclude: false },
+    { category: "ストラテジ", word: "GX推進法", question: "脱炭素への投資環境を法的に整備・推進する法律は", explanation: "経済成長と環境保全を両立させます。", exclude: false },
+    { category: "ストラテジ", word: "GX脱炭素電源法", question: "再生可能エネルギー等の導入を促進する法律は", explanation: "エネルギー安定供給と脱炭素の両立を目指します。", exclude: false },
+    { category: "ストラテジ", word: "省エネ法", question: "エネルギーの使用状況を把握し省エネを義務付ける法律は", explanation: "資源の有効活用を図ります。", exclude: false },
+    { category: "ストラテジ", word: "フォーラム標準", question: "特定の企業グループではなく業界団体などが共同で策定する標準は", explanation: "市場競争を通じて事実上の標準（デファクト標準）となることが多い規格です。", exclude: false }
+];
+
+
+let currentQuizList = [];
+let currentQuizIndex = 0;
+let sortAsc = true;
+
+// タブ切り替え
+function showTab(tabName) {
+    if (tabName === 'list') {
+        document.getElementById('tab-list').classList.remove('hidden');
+        document.getElementById('tab-quiz').classList.add('hidden');
+        document.getElementById('tab-list-btn').classList.add('active');
+        document.getElementById('tab-quiz-btn').classList.remove('active');
+        renderList();
+    } else {
+        document.getElementById('tab-list').classList.add('hidden');
+        document.getElementById('tab-quiz').classList.remove('hidden');
+        document.getElementById('tab-list-btn').classList.remove('active');
+        document.getElementById('tab-quiz-btn').classList.active ? null : document.getElementById('tab-quiz-btn').classList.add('active');
+    }
+}
+
+// 単語一覧の描画
+function renderList() {
+    const tbody = document.getElementById('word-list-body');
+    const search = document.getElementById('search-input').value.toLowerCase();
+    const categoryFilter = document.getElementById('filter-category').value;
+
+    tbody.innerHTML = '';
+
+    termData.forEach((item, index) => {
+        if (categoryFilter !== 'all' && item.category !== categoryFilter) return;
+        if (search && !item.word.toLowerCase().includes(search) && !item.question.toLowerCase().includes(search) && !item.explanation.toLowerCase().includes(search)) return;
+
+        const tr = document.createElement('tr');
+        
+        let catClass = 'tech';
+        if (item.category === 'マネジメント') catClass = 'mana';
+        if (item.category === 'ストラテジ') catClass = 'stra';
+
+        tr.innerHTML = `
+            <td style="text-align:center;"><input type="checkbox" ${item.exclude ? 'checked' : ''} onchange="toggleExclude(${index}, this.checked)"></td>
+            <td><span class="category-tag ${catClass}">${item.category}</span></td>
+            <td><strong>${item.word}</strong></td>
+            <td>
+                <div><strong>問:</strong> ${item.question}</div>
+                <div style="font-size: 0.85em; color: #555; margin-top: 5px;"><strong>解:</strong> ${item.explanation}</div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function toggleExclude(index, isChecked) {
+    termData[index].exclude = isChecked;
+}
+
+function sortList(key) {
+    termData.sort((a, b) => {
+        let valA = a[key];
+        let valB = b[key];
+        if (typeof valA === 'boolean') {
+            return sortAsc ? (valA === valB ? 0 : valA ? -1 : 1) : (valA === valB ? 0 : valA ? 1 : -1);
+        }
+        return sortAsc ? valA.localeCompare(valB, 'ja') : valB.localeCompare(a[key], 'ja');
+    });
+    sortAsc = !sortAsc;
+    renderList();
+}
+
+// クイズ関連処理
+function startQuiz() {
+    const selectedCategory = document.getElementById('quiz-category').value;
+    
+    // 除外チェックが入っておらず、カテゴリ条件に合うものを抽出
+    currentQuizList = termData.filter(item => {
+        if (item.exclude) return false;
+        if (selectedCategory !== 'all' && item.category !== selectedCategory) return false;
+        return true;
+    });
+
+    if (currentQuizList.length === 0) {
+        alert('出題できる対象の単語がありません。（すべて除外されているか、カテゴリ内にデータがありません）');
+        return;
+    }
+
+    // シャッフル
+    currentQuizList.sort(() => Math.random() - 0.5);
+    currentQuizIndex = 0;
+
+    document.getElementById('quiz-setup').classList.add('hidden');
+    document.getElementById('quiz-area').classList.remove('hidden');
+    
+    loadQuestion();
+}
+
+function loadQuestion() {
+    const currentItem = currentQuizList[currentQuizIndex];
+    
+    document.getElementById('quiz-progress').innerText = `問題 ${currentQuizIndex + 1} / ${currentQuizList.length}`;
+    document.getElementById('quiz-question').innerText = currentItem.question;
+    document.getElementById('quiz-answer').innerText = currentItem.word;
+    document.getElementById('quiz-explanation').innerText = currentItem.explanation;
+
+    // 現在の除外状態をチェックボックスに反映
+    document.getElementById('quiz-exclude-checkbox').checked = currentItem.exclude;
+
+    // 解答エリアを非表示に戻す
+    document.getElementById('quiz-answer-container').classList.add('hidden');
+    document.getElementById('show-answer-btn').innerText = '答えを表示';
+}
+
+// 出題中の単語を除外更新する処理
+function toggleCurrentQuestionExclude(isChecked) {
+    if (currentQuizList.length === 0) return;
+    const currentItem = currentQuizList[currentQuizIndex];
+    currentItem.exclude = isChecked;
+}
+
+function toggleAnswer() {
+    const container = document.getElementById('quiz-answer-container');
+    const btn = document.getElementById('show-answer-btn');
+    if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        btn.innerText = '答えを隠す';
+    } else {
+        container.classList.add('hidden');
+        btn.innerText = '答えを表示';
+    }
+}
+
+function nextQuestion() {
+    if (currentQuizIndex < currentQuizList.length - 1) {
+        currentQuizIndex++;
+        loadQuestion();
+    } else {
+        alert('すべての問題が終了しました！');
+    }
+}
+
+function prevQuestion() {
+    if (currentQuizIndex > 0) {
+        currentQuizIndex--;
+        loadQuestion();
+    }
+}
+
+function exitQuiz() {
+    document.getElementById('quiz-area').classList.add('hidden');
+    document.getElementById('quiz-setup').classList.remove('hidden');
+}
+
+// 初期描画
+renderList();
+</script>
+</body>
+</html>
