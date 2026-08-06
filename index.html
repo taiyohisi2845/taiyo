@@ -47,7 +47,11 @@
     <button id="tab-list-btn" class="active" onclick="showTab('list')">単語一覧</button>
     <button id="tab-quiz-btn" onclick="showTab('quiz')">出題開始</button>
 </div>
-
+<!-- 文字列でのバックアップ・復元ボタン -->
+<div style="margin: 10px 0; display: flex; gap: 10px;">
+  <button onclick="copyBackupCode()" style="padding: 6px 12px; cursor: pointer;">復元コードをコピー</button>
+  <button onclick="restoreFromCode()" style="padding: 6px 12px; cursor: pointer;">コードから復元</button>
+</div>
 <!-- 単語一覧タブ -->
 <div id="tab-list" class="content">
     <div class="controls">
@@ -72,6 +76,7 @@
         <tbody id="word-list-body"></tbody>
     </table>
 </div>
+
 <!-- 出題開始タブ -->
 <div id="tab-quiz" class="content hidden">
     <div id="quiz-setup">
@@ -839,6 +844,50 @@ function prevQuestion() {
 function exitQuiz() {
     document.getElementById('quiz-area').classList.add('hidden');
     document.getElementById('quiz-setup').classList.remove('hidden');
+}
+// チェック状態を文字列にしてクリップボードにコピー
+function copyBackupCode() {
+    const excludes = [];
+    termData.forEach((item, index) => {
+        if (item.exclude) excludes.push(index);
+    });
+
+    if (excludes.length === 0) {
+        alert('現在チェックが入っている項目はありません。');
+        return;
+    }
+
+    // 数字のリストをカンマ区切りの文字列にする
+    const code = excludes.join(',');
+
+    navigator.clipboard.writeText(code).then(() => {
+        alert('復元コードをコピーしました！\nメモ帳などに貼り付けて保存しておけます。\n\nコード: ' + code);
+    }).catch(() => {
+        // 万が一自動コピーが失敗した場合のフォールバック
+        prompt('以下のコードをコピーしてメモ帳等に保存してください:', code);
+    });
+}
+
+// コピーしておいた文字から復元
+function restoreFromCode() {
+    const inputCode = prompt('保存しておいた復元コード（数字）を貼り付けてください:');
+    if (!inputCode) return;
+
+    try {
+        const excludes = inputCode.split(',').map(Number);
+        
+        // 一旦全リセットして該当のインデックスだけチェックを入れる
+        termData.forEach((item, index) => {
+            item.exclude = excludes.includes(index);
+        });
+
+        saveExcludes(); // ローカルストレージも更新
+        renderList();   // 画面再描画
+        
+        alert('チェック状態を復元しました！');
+    } catch (e) {
+        alert('コードの読み込みに失敗しました。正しく貼り付けられているか確認してください。');
+    }
 }
 // 初期起動時の処理：保存データの読み込みと初描画
 loadSavedExcludes();
