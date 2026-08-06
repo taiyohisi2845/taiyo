@@ -72,7 +72,11 @@
         <tbody id="word-list-body"></tbody>
     </table>
 </div>
-
+<!-- バックアップ・復元ボタン -->
+<div style="margin: 10px 0; display: flex; gap: 10px;">
+  <button onclick="exportData()" style="padding: 6px 12px; cursor: pointer;">データを保存（バックアップ）</button>
+  <button onclick="importData()" style="padding: 6px 12px; cursor: pointer;">データを復元（読み込み）</button>
+</div>
 <!-- 出題開始タブ -->
 <div id="tab-quiz" class="content hidden">
     <div id="quiz-setup">
@@ -841,7 +845,60 @@ function exitQuiz() {
     document.getElementById('quiz-area').classList.add('hidden');
     document.getElementById('quiz-setup').classList.remove('hidden');
 }
+// データをJSONファイルとしてダウンロード（バックアップ）
+function exportData() {
+    const excludesMap = {};
+    termData.forEach(item => {
+        if (item.exclude) {
+            excludesMap[item.word] = true;
+        }
+    });
 
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(excludesMap, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", "taiyo_backup.json");
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+}
+
+// バックアップファイルを読み込んで復元
+function importData() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = readerEvent => {
+            try {
+                const content = readerEvent.target.result;
+                const excludesMap = JSON.parse(content);
+                
+                // データを反映
+                termData.forEach(item => {
+                    item.exclude = !!excludesMap[item.word];
+                });
+
+                // ローカルストレージも更新
+                saveExcludes();
+                // 画面を再描画
+                renderList();
+
+                alert('データを正常に復元しました！');
+            } catch (err) {
+                alert('ファイルの読み込みに失敗しました。正しいバックアップファイルを選択してください。');
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+    };
+
+    input.click();
+}
 // 初期起動時の処理：保存データの読み込みと初描画
 loadSavedExcludes();
 renderList();
