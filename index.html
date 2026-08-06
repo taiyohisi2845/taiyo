@@ -816,7 +816,26 @@ function exitQuiz() {
     document.getElementById('quiz-area').classList.add('hidden');
     document.getElementById('quiz-setup').classList.remove('hidden');
 }
-
+document.addEventListener('DOMContentLoaded', () => {
+    const savedStates = JSON.parse(localStorage.getItem('wordChecklistStates') || '{}');
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    
+    checkboxes.forEach((checkbox, index) => {
+      // 保存データがあれば反映
+      if (savedStates[index] !== undefined) {
+        checkbox.checked = savedStates[index];
+      }
+      
+      // チェックが変更されたら localStorage に保存
+      checkbox.addEventListener('change', () => {
+        const currentStates = {};
+        checkboxes.forEach((cb, i) => {
+          currentStates[i] = cb.checked;
+        });
+        localStorage.setItem('wordChecklistStates', JSON.stringify(currentStates));
+      });
+    });
+  });
 // 初期描画
 renderList();
 </script>
