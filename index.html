@@ -671,6 +671,29 @@ let currentQuizList = [];
 let currentQuizIndex = 0;
 let sortAsc = true;
 
+// 1. ローカルストレージから保存された除外データ（exclude）を復元する関数
+function loadSavedExcludes() {
+    const saved = localStorage.getItem('taiyo_excludes');
+    if (saved && typeof termData !== 'undefined') {
+        const excludesMap = JSON.parse(saved);
+        termData.forEach(item => {
+            if (excludesMap[item.word] !== undefined) {
+                item.exclude = excludesMap[item.word];
+            }
+        });
+    }
+}
+
+// 2. 現在の除外状態（exclude）をローカルストレージに保存する関数
+function saveExcludes() {
+    if (typeof termData === 'undefined') return;
+    const excludesMap = {};
+    termData.forEach(item => {
+        excludesMap[item.word] = !!item.exclude;
+    });
+    localStorage.setItem('taiyo_excludes', JSON.stringify(excludesMap));
+}
+
 // タブ切り替え
 function showTab(tabName) {
     if (tabName === 'list') {
@@ -683,7 +706,7 @@ function showTab(tabName) {
         document.getElementById('tab-list').classList.add('hidden');
         document.getElementById('tab-quiz').classList.remove('hidden');
         document.getElementById('tab-list-btn').classList.remove('active');
-        document.getElementById('tab-quiz-btn').classList.active ? null : document.getElementById('tab-quiz-btn').classList.add('active');
+        document.getElementById('tab-quiz-btn').active ? null : document.getElementById('tab-quiz-btn').classList.add('active');
     }
 }
 
@@ -720,6 +743,7 @@ function renderList() {
 
 function toggleExclude(index, isChecked) {
     termData[index].exclude = isChecked;
+    saveExcludes(); // チェック変更時に保存
 }
 
 function sortList(key) {
@@ -770,7 +794,7 @@ function loadQuestion() {
     document.getElementById('quiz-explanation').innerText = currentItem.explanation;
 
     // 現在の除外状態をチェックボックスに反映
-    document.getElementById('quiz-exclude-checkbox').checked = currentItem.exclude;
+    document.getElementById('quiz-exclude-checkbox').checked = !!currentItem.exclude;
 
     // 解答エリアを非表示に戻す
     document.getElementById('quiz-answer-container').classList.add('hidden');
@@ -782,6 +806,7 @@ function toggleCurrentQuestionExclude(isChecked) {
     if (currentQuizList.length === 0) return;
     const currentItem = currentQuizList[currentQuizIndex];
     currentItem.exclude = isChecked;
+    saveExcludes(); // クイズ画面でチェック変更時にも保存
 }
 
 function toggleAnswer() {
@@ -816,27 +841,9 @@ function exitQuiz() {
     document.getElementById('quiz-area').classList.add('hidden');
     document.getElementById('quiz-setup').classList.remove('hidden');
 }
-document.addEventListener('DOMContentLoaded', () => {
-    const savedStates = JSON.parse(localStorage.getItem('wordChecklistStates') || '{}');
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-    
-    checkboxes.forEach((checkbox, index) => {
-      // 保存データがあれば反映
-      if (savedStates[index] !== undefined) {
-        checkbox.checked = savedStates[index];
-      }
-      
-      // チェックが変更されたら localStorage に保存
-      checkbox.addEventListener('change', () => {
-        const currentStates = {};
-        checkboxes.forEach((cb, i) => {
-          currentStates[i] = cb.checked;
-        });
-        localStorage.setItem('wordChecklistStates', JSON.stringify(currentStates));
-      });
-    });
-  });
-// 初期描画
+
+// 初期起動時の処理：保存データの読み込みと初描画
+loadSavedExcludes();
 renderList();
 </script>
 </body>
